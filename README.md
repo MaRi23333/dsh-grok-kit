@@ -47,7 +47,7 @@ Default: grok-4.6 searches on xAI's servers inside the same Responses turn (show
 
 `grok_web_search` / nested `x_search` are **not** registered in this default. They were a nested LLM hop (`grok-build-0.1`) from before the main request could mix server-side tools. Keep the code behind `nestedSearchTools: true` only if you need `allowed_domains` / handle / date filters, or as a fallback after `backendSearch: false`. A SuperGrok 403 on the chat route is fatal for that turn — set `backendSearch: false` (nested tools then come back unless you also set `nestedSearchTools: false`).
 
-`grok_imagine` generates images (approximate 1K low ~$0.04/image). Output is an image block when the host attachment service is present; otherwise it writes under `<session cwd>/.dsh-grok-kit/` (not gitignored automatically).
+`grok_imagine` generates one image per call (approximate 1K low ~$0.04/image). Output is an image block when the host attachment service is present; otherwise it writes under `<session cwd>/.dsh-grok-kit/` (not gitignored automatically).
 
 ## Configuration
 

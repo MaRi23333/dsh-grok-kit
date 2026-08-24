@@ -47,7 +47,7 @@ npx @deepseek-ai/dsh web
 
 `grok_web_search` / 嵌套 `x_search` **默认不注册**。它们是主请求还不能混服务端工具时的套娃路径（`grok-build-0.1`）。只有需要 `allowed_domains` / 账号/日期过滤，或关掉 `backendSearch` 当回退时，才设 `nestedSearchTools: true`。主请求 403 会让整轮聊天失败——设 `backendSearch: false`（嵌套工具会回来，除非再显式 `nestedSearchTools: false`）。
 
-`grok_imagine` 出图（1K low 大约 $0.04/张，约数）。有附件服务时结果是 image block；否则写到 `<会话 cwd>/.dsh-grok-kit/`（不会自动改 `.gitignore`）。
+`grok_imagine` 每次调用出一张图（1K low 大约 $0.04/张，约数）。有附件服务时结果是 image block；否则写到 `<会话 cwd>/.dsh-grok-kit/`（不会自动改 `.gitignore`）。
 
 ## 配置项
 
