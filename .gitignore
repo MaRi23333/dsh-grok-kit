@@ -9,6 +9,9 @@ coverage/
 # Internal handoff stays out of a published repo (local paths).
 HANDOFF.md
 
+# Publish instructions for the GitHub platform agent (local delivery only).
+PUBLISH.md
+
 # Internal dev docs (design-parity notes with local-machine paths) stay local too.
 docs/
 
