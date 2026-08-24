@@ -43,20 +43,30 @@ For domain, account, or date filters, disable `backendSearch` or explicitly enab
 
 ## Interface and behavior
 
-<p align="center">
-  <img src="assets/readme/settings.png" width="820" alt="dsh-grok-kit settings: Grok CLI sign-in, model selection, and xAI-only proxy">
-</p>
-<p align="center"><sub>Settings reuses the Grok CLI login, exposes account-visible models, and optionally configures a proxy for xAI only. <code>127.0.0.1</code> in the example is a loopback proxy address.</sub></p>
+### Account, models, and proxy
 
 <p align="center">
-  <img src="assets/readme/main-loop-search.png" width="960" alt="Grok completes web search inside the same Think turn">
+  <img src="assets/readme/settings.png" width="620" alt="dsh-grok-kit settings: Grok CLI sign-in, model selection, and xAI-only proxy">
 </p>
-<p align="center"><sub>Main-turn search: web lookup occurs inside the same Think turn rather than appearing as a normal host-side tool call. The news content is illustrative UI data, not a factual reference.</sub></p>
+<p align="center"><em>Settings reuses the Grok CLI login, exposes account-visible models, and optionally configures a proxy for xAI only. <code>127.0.0.1</code> in the example is a loopback proxy address.</em></p>
+
+<br><br>
+
+### Web search inside the main loop
 
 <p align="center">
-  <img src="assets/readme/x-search.png" width="960" alt="xAI returns an X-search custom_tool_call before completing the answer">
+  <img src="assets/readme/main-loop-search.png" width="760" alt="Grok completes web search inside the same Think turn">
 </p>
-<p align="center"><sub>X search may surface a <code>custom_tool_call</code> such as <code>x_keyword_search</code>. xAI has already run the search; the plugin only completes that turn in DSH. Screenshot content is illustrative.</sub></p>
+<p align="center"><em>Web lookup occurs inside the same Think turn rather than appearing as a normal host-side tool call. The news content is illustrative UI data, not a factual reference.</em></p>
+
+<br><br>
+
+### Server-side X search calls
+
+<p align="center">
+  <img src="assets/readme/x-search.png" width="760" alt="xAI returns an X-search custom_tool_call before completing the answer">
+</p>
+<p align="center"><em>X search may surface a <code>custom_tool_call</code> such as <code>x_keyword_search</code>. xAI has already run the search; the plugin only completes that turn in DSH. Screenshot content is illustrative.</em></p>
 
 ## Install
 

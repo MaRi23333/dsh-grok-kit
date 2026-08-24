@@ -43,20 +43,30 @@
 
 ## 界面与效果
 
-<p align="center">
-  <img src="assets/readme/settings.png" width="820" alt="dsh-grok-kit 设置页：Grok CLI 登录、模型选择与 xAI 专用代理">
-</p>
-<p align="center"><sub>设置页：复用 Grok CLI 登录，选择账号可见模型，并按需设置仅对 xAI 生效的网络代理。图中的 <code>127.0.0.1</code> 是本机回环代理示例。</sub></p>
+### 账号、模型与代理
 
 <p align="center">
-  <img src="assets/readme/main-loop-search.png" width="960" alt="Grok 在同一轮 Think 中完成网页搜索并回答">
+  <img src="assets/readme/settings.png" width="620" alt="dsh-grok-kit 设置页：Grok CLI 登录、模型选择与 xAI 专用代理">
 </p>
-<p align="center"><sub>主循环融合搜索：网页检索直接发生在同一轮 Think 中，不显示为宿主侧的常规工具调用。截图里的新闻内容只用于展示交互，不作为事实来源。</sub></p>
+<p align="center"><em>设置页复用 Grok CLI 登录，展示账号可见模型，并按需设置仅对 xAI 生效的网络代理。图中的 <code>127.0.0.1</code> 是本机回环代理示例。</em></p>
+
+<br><br>
+
+### 网页搜索融入主循环
 
 <p align="center">
-  <img src="assets/readme/x-search.png" width="960" alt="xAI 返回 X 搜索 custom_tool_call 后继续完成回答">
+  <img src="assets/readme/main-loop-search.png" width="760" alt="Grok 在同一轮 Think 中完成网页搜索并回答">
 </p>
-<p align="center"><sub>X 搜索：响应可能显示 <code>x_keyword_search</code> 等 <code>custom_tool_call</code>；搜索已在 xAI 服务端执行，插件只负责让该轮在 DSH 中收尾。截图内容仅作功能演示。</sub></p>
+<p align="center"><em>网页检索直接发生在同一轮 Think 中，不显示为宿主侧的常规工具调用。截图里的新闻内容只用于展示交互，不作为事实来源。</em></p>
+
+<br><br>
+
+### X 搜索的服务端调用
+
+<p align="center">
+  <img src="assets/readme/x-search.png" width="760" alt="xAI 返回 X 搜索 custom_tool_call 后继续完成回答">
+</p>
+<p align="center"><em>响应可能显示 <code>x_keyword_search</code> 等 <code>custom_tool_call</code>；搜索已在 xAI 服务端执行，插件只负责让该轮在 DSH 中收尾。截图内容仅作功能演示。</em></p>
 
 ## 安装
 
