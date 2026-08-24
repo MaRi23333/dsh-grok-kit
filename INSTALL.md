@@ -12,10 +12,10 @@ Idempotent runbook for humans and automation agents.
 
 ## Install into the web profile
 
-Install from a GitHub repository (replace `<your-name>` with the repository owner):
+Install from GitHub:
 
 ```sh
-dsh plugin --profile web add github:<your-name>/dsh-grok-kit
+dsh plugin --profile web add github:MaRi23333/dsh-grok-kit
 ```
 
 A local checkout can be installed by path instead:
@@ -27,7 +27,7 @@ dsh plugin --profile web add ./dsh-grok-kit
 From a DeepSeek Harness source checkout, prefix with `pnpm`:
 
 ```sh
-pnpm dsh plugin --profile web add github:<your-name>/dsh-grok-kit
+pnpm dsh plugin --profile web add github:MaRi23333/dsh-grok-kit
 ```
 
 This repository ships `lib/`, so a git install does not run build scripts. If you installed an older commit and pnpm still asks for `allowBuilds` / `onlyBuiltDependencies`, put the printed package key in that profile's `pnpm-workspace.yaml` and re-run `add`:
@@ -42,7 +42,7 @@ The file is usually `~/.dsh/profiles/web/pnpm-workspace.yaml` (create it if miss
 ## Development install
 
 ```sh
-git clone https://github.com/<your-name>/dsh-grok-kit
+git clone https://github.com/MaRi23333/dsh-grok-kit
 cd dsh-grok-kit
 npm install
 npm run check
@@ -50,6 +50,8 @@ dsh plugin --profile web add .
 ```
 
 ## Sign in
+
+> **Unofficial integration:** This is not an official xAI or X product and does not claim product-specific permission or endorsement. OAuth availability depends on account entitlement and current xAI policies. Read the full unofficial-project, trademark, and account-use notice in the README before signing in.
 
 Web UI:
 

@@ -1,4 +1,8 @@
 #!/usr/bin/env node
+//
+// Derived from dsh-xai (https://github.com/MirDie/dsh-xai), Apache-2.0.
+// Modified for dsh-grok-kit — see NOTICE for the full attribution.
+//
 /** Standalone credential CLI for the optional xAI Grok bundle. */
 
 import { spawn } from 'node:child_process'

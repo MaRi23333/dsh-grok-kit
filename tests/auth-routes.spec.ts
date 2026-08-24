@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { isTrustedRequest, jsonContentTypeAccepted } from '../src/auth-routes.ts'
+import { Readable } from 'node:stream'
+import type { IncomingMessage } from 'node:http'
+import { isTrustedRequest, jsonContentTypeAccepted, readJson } from '../src/auth-routes.ts'
 
 describe('jsonContentTypeAccepted (CSRF defense in depth)', () => {
   it('accepts no content-type header (no body)', () => {
@@ -57,5 +59,39 @@ describe('isTrustedRequest (loopback + Host pin + Origin)', () => {
     expect(isTrustedRequest(loopback, {}, 'GET')).toBe(false)
     expect(isTrustedRequest(loopback, headers('evil.example', 'http://evil.example'), 'POST')).toBe(false)
     expect(isTrustedRequest(loopback, { host: 'evil.example' }, 'GET')).toBe(false)
+  })
+})
+
+describe('readJson (body ceiling)', () => {
+  function request(chunks: Buffer[], contentType = 'application/json'): IncomingMessage {
+    const stream = Readable.from(chunks) as unknown as IncomingMessage
+    stream.headers = { 'content-type': contentType }
+    return stream
+  }
+
+  it('parses a normal JSON body', async () => {
+    await expect(readJson(request([Buffer.from('{"a":1,"selected":["grok-4.6"]}')]))).resolves.toEqual({
+      a: 1,
+      selected: ['grok-4.6'],
+    })
+  })
+
+  it('returns {} for an empty body', async () => {
+    await expect(readJson(request([]))).resolves.toEqual({})
+  })
+
+  it('rejects a body over 1 MiB with a 413-class error', async () => {
+    const big = Buffer.alloc(1024 * 1024 + 1, 0x41)
+    await expect(readJson(request([big]))).rejects.toThrow(/too large/)
+  })
+
+  it('rejects malformed JSON', async () => {
+    await expect(readJson(request([Buffer.from('{nope')]))).rejects.toThrow()
+  })
+
+  it('rejects non-JSON content types', async () => {
+    await expect(readJson(request([Buffer.from('a=1')], 'application/x-www-form-urlencoded'))).rejects.toThrow(
+      /content-type/,
+    )
   })
 })

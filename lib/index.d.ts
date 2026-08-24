@@ -301,7 +301,7 @@ declare function safeMessage(error: unknown): string;
 //#region src/proxy.d.ts
 /** Absolute path of the plugin-owned proxy setting file. */
 declare function xaiProxyPath(dshHome?: string): string;
-/** Read the plugin's own stored proxy URL ('' = off). */
+/** Read the plugin's own stored proxy URL ('' = off; invalid/userinfo values are dropped). */
 declare function readStoredProxyUrl(): string;
 /** Persist the plugin's own proxy setting. */
 declare function writeStoredProxyUrl(url: string): Promise<void>;
@@ -315,10 +315,11 @@ declare function setXaiProxyUrl(url: string): boolean;
  * Install a transparent global-fetch hook that routes ONLY x.ai origins
  * through this plugin's ProxyAgent; every other request goes to the
  * original fetch untouched. Idempotent; without a configured URL it is a
- * pure pass-through.
+ * pure pass-through. Returns a disposer that restores the original fetch
+ * and closes the ProxyAgent (used by the plugin's ctx.effect cleanup).
  */
-declare function installXaiFetchHook(): void;
-/** Effective proxy URL: stored setting > config `proxyUrl` > `DSH_XAI_PROXY`. */
+declare function installXaiFetchHook(): () => void;
+/** Effective proxy URL: stored setting > config `proxyUrl` > `DSH_XAI_PROXY`. Invalid/userinfo values resolve to ''. */
 declare function resolveXaiProxyUrl(configUrl?: string): string;
 /** Install the hook and apply the current URL. Returns the effective URL, '' when unset/invalid. */
 declare function applyXaiProxy(configUrl?: string): string;

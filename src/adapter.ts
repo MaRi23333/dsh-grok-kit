@@ -1,3 +1,11 @@
+//
+
+// Derived from dsh-xai (https://github.com/MirDie/dsh-xai), Apache-2.0.
+
+// Modified for dsh-grok-kit — see NOTICE for the full attribution.
+
+//
+
 /** xAI subscription adapter assembled from public dsh-llm-pi-ai extension points. */
 
 import { existsSync } from 'node:fs'

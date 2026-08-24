@@ -1,3 +1,11 @@
+//
+
+// Derived from dsh-xai (https://github.com/MirDie/dsh-xai), Apache-2.0.
+
+// Modified for dsh-grok-kit — see NOTICE for the full attribution.
+
+//
+
 /** Browser half: xAI Grok account management inside dsh Settings. */
 
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'

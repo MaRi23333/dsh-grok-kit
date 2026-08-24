@@ -1,3 +1,11 @@
+//
+
+// Derived from dsh-xai (https://github.com/MirDie/dsh-xai), Apache-2.0.
+
+// Modified for dsh-grok-kit — see NOTICE for the full attribution.
+
+//
+
 /**
  * xAI OAuth orchestration shared by the plugin and standalone launcher.
  * @module dsh-grok-kit/auth

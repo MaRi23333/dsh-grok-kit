@@ -1,3 +1,11 @@
+//
+
+// Derived from dsh-xai (https://github.com/MirDie/dsh-xai), Apache-2.0.
+
+// Modified for dsh-grok-kit — see NOTICE for the full attribution.
+
+//
+
 /** pi-ai provider id used by login, refresh, and the credential store. */
 export const XAI_PI_PROVIDER = 'xai'
 

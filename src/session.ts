@@ -1,3 +1,11 @@
+//
+
+// Derived from dsh-xai (https://github.com/MirDie/dsh-xai), Apache-2.0.
+
+// Modified for dsh-grok-kit — see NOTICE for the full attribution.
+
+//
+
 /**
  * Shared OAuth store + live catalog for the host plugin and CLI.
  * @module dsh-grok-kit/session

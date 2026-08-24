@@ -4,6 +4,8 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   applyXaiProxy,
+  disposeXaiFetchHook,
+  installXaiFetchHook,
   readStoredProxyUrl,
   resolveXaiProxyUrl,
   setXaiProxyUrl,
@@ -19,6 +21,7 @@ let dir: string | undefined
 afterEach(async () => {
   process.env.DSH_HOME = originalHome
   process.env.DSH_XAI_PROXY = originalEnv
+  disposeXaiFetchHook()
   setXaiProxyUrl('')
   if (dir !== undefined) await rm(dir, { recursive: true, force: true })
   dir = undefined
@@ -89,5 +92,40 @@ describe('proxy settings', () => {
     expect(setXaiProxyUrl('not a url')).toBe(false)
     expect(setXaiProxyUrl('http://127.0.0.1:8080')).toBe(true)
     expect(setXaiProxyUrl('')).toBe(true)
+  })
+
+  it('refuses proxy URLs with embedded credentials and never persists them', async () => {
+    const home = await tempHome()
+    expect(validProxyUrl('http://user:pass@example.com:8080')).toBeUndefined()
+    expect(validProxyUrl('http://user@example.com:8080')).toBeUndefined()
+    expect(validProxyUrl('http://example.com:8080')).toBe('http://example.com:8080')
+    expect(setXaiProxyUrl('http://user:pass@example.com:8080')).toBe(false)
+
+    // A legacy file that already contains credentials is dropped on read.
+    await writeFile(xaiProxyPath(home), `${JSON.stringify({
+      version: 1,
+      proxyUrl: 'http://user:pass@example.com:8080',
+    })}\n`)
+    expect(readStoredProxyUrl()).toBe('')
+    expect(resolveXaiProxyUrl('')).toBe('')
+
+    // env/config with credentials resolve to '' (nothing is routed).
+    process.env.DSH_XAI_PROXY = 'http://user:pass@example.com:8080'
+    expect(resolveXaiProxyUrl('')).toBe('')
+    process.env.DSH_XAI_PROXY = ''
+  })
+
+  it('install/dispose restores the original fetch', async () => {
+    await tempHome()
+    const original = globalThis.fetch
+    applyXaiProxy('http://127.0.0.1:8080')
+    expect(globalThis.fetch).not.toBe(original)
+    disposeXaiFetchHook()
+    expect(globalThis.fetch).toBe(original)
+    // Install again after dispose works (idempotent cycles).
+    applyXaiProxy('')
+    expect(globalThis.fetch).not.toBe(original)
+    disposeXaiFetchHook()
+    expect(globalThis.fetch).toBe(original)
   })
 })

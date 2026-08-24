@@ -1,3 +1,11 @@
+//
+
+// Derived from dsh-xai (https://github.com/MirDie/dsh-xai), Apache-2.0.
+
+// Modified for dsh-grok-kit — see NOTICE for the full attribution.
+
+//
+
 /**
  * Owner-only persistent OAuth credential storage for the xAI subscription route.
  * @module dsh-grok-kit/store

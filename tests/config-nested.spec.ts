@@ -36,6 +36,10 @@ describe('apply() registration', () => {
     const ctx = {
       emit: vi.fn(),
       get: vi.fn(() => undefined),
+      effect: vi.fn((callback: () => void | (() => void)) => {
+        const dispose = callback()
+        return dispose ?? (() => undefined)
+      }),
       llm: {
         listProviders: () => [],
         registerAdapter: vi.fn(),
@@ -49,9 +53,9 @@ describe('apply() registration', () => {
           },
           systemPrompt: { section: vi.fn() },
           webServer: { register: vi.fn(() => ({})) },
-          effect: vi.fn((callback: () => void) => {
-            callback()
-            return () => undefined
+          effect: vi.fn((callback: () => void | (() => void)) => {
+            const dispose = callback()
+            return dispose ?? (() => undefined)
           }),
         } as never)
       },

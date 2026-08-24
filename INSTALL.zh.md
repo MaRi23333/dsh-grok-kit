@@ -12,10 +12,10 @@
 
 ## 装进 web profile
 
-从 GitHub 安装（把 `<your-name>` 换成仓库所有者）：
+从 GitHub 安装：
 
 ```sh
-dsh plugin --profile web add github:<your-name>/dsh-grok-kit
+dsh plugin --profile web add github:MaRi23333/dsh-grok-kit
 ```
 
 本地检出目录也可以直接装：
@@ -27,7 +27,7 @@ dsh plugin --profile web add ./dsh-grok-kit
 从 dsh 源码目录启动时：
 
 ```sh
-pnpm dsh plugin --profile web add github:<your-name>/dsh-grok-kit
+pnpm dsh plugin --profile web add github:MaRi23333/dsh-grok-kit
 ```
 
 仓库已经带构建好的 `lib/`，git 安装不跑构建脚本。若你装到的还是旧提交、pnpm 仍提示 `allowBuilds` / `onlyBuiltDependencies`，把提示里的包名写进该 profile 的 `pnpm-workspace.yaml` 后再 `add` 一次：
@@ -42,7 +42,7 @@ allowBuilds:
 ## 开发安装
 
 ```sh
-git clone https://github.com/<your-name>/dsh-grok-kit
+git clone https://github.com/MaRi23333/dsh-grok-kit
 cd dsh-grok-kit
 npm install
 npm run check
@@ -50,6 +50,8 @@ dsh plugin --profile web add .
 ```
 
 ## 登录
+
+> **非官方集成：** 本插件不是 xAI 或 X 的官方产品，也不主张获得其对本插件的个别许可或背书。OAuth 可用性取决于账户资格与 xAI 当前策略；请在登录前阅读 README 的完整非官方项目、商标与账户使用声明。
 
 Web UI：
 

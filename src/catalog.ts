@@ -1,3 +1,11 @@
+//
+
+// Derived from dsh-xai (https://github.com/MirDie/dsh-xai), Apache-2.0.
+
+// Modified for dsh-grok-kit — see NOTICE for the full attribution.
+
+//
+
 /**
  * Account-specific Grok catalog: live GET /v1/models merged onto the installed
  * pi-ai descriptors. Failures keep the last good list, then the static catalog.

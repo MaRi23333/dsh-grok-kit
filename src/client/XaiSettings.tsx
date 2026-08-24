@@ -1,3 +1,11 @@
+//
+
+// Derived from dsh-xai (https://github.com/MirDie/dsh-xai), Apache-2.0.
+
+// Modified for dsh-grok-kit — see NOTICE for the full attribution.
+
+//
+
 /** Plugin-owned xAI Grok account page inside the dsh Settings shell. */
 
 import { useCallback, useEffect, useState } from 'react'
@@ -287,6 +295,8 @@ export function XaiSettings({ t }: XaiOAuthSettingsProps) {
                   )}
           </div>
         </div>
+
+        <p style={{ ...bodyStyle, fontSize: 12, color: 'var(--dsw-alias-label-dimmed)' }}>{t('unofficialNotice')}</p>
 
         {status.status === 'error' ? <p style={errorStyle}>{status.message}</p> : null}
         {status.status !== 'loading' && status.sharedGrokAuth === true

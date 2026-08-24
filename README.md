@@ -4,6 +4,12 @@ English | [中文](README.zh.md)
 
 Use a SuperGrok or X Premium subscription in [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) through xAI's device-code sign-in — no `XAI_API_KEY` required, and no dsh source patch required.
 
+> **Unofficial project and trademark notice**
+>
+> `dsh-grok-kit` is an independently developed, third-party community plugin for DeepSeek Harness. It is not an official product of, or representative of, xAI, X, DeepSeek, DeepSeek Harness, or their maintainers, and it does not claim product-specific permission, sponsorship, endorsement, or approval from them. Grok, xAI, X, DeepSeek, DeepSeek Harness, and related names and marks are the property of their respective owners and are used only to identify compatible services accurately.
+>
+> This plugin's OAuth compatibility may depend on the user's subscription tier, region, xAI terms, account entitlement, rate limits, and future service changes. Users are responsible for ensuring that their account and use are permitted. This project does not guarantee continued access or compatibility and does not provide xAI/Grok accounts, subscriptions, or official support.
+
 This is an independent dsh bundle. It adds:
 
 - SuperGrok / X Premium OAuth sign-in with automatic token refresh (device-code flow) from the dsh Settings panel
@@ -17,7 +23,7 @@ The catalog `xai` API-key route stays untouched. This plugin registers `xai-oaut
 
 ## Highlights
 
-**Full Grok search power, fused into the main loop — the flagship feature.** `{type:web_search}` / `{type:x_search}` ride the *same* Responses turn as the reply: the search **is** the thinking. No nested search hop, no second model call, no URL-list-only discovery — grok-4.6 searches with its full ability, exactly like Grok Build does, over the public API. **The complete X search toolset is server-side too**: when it wants X detail, xAI emits one of `x_keyword_search` (keyword), `x_semantic_search` (semantic), `x_user_search` (user) or `x_thread_fetch` (thread/conversation) as a `custom_tool_call` — whichever mode fits — and the search already ran inside that turn. The bundle registers execute-only tools under those exact names so the DSH loop can finish the round; none of them is a second search pipeline.
+**Full Grok search power, fused into the main loop — the flagship feature.** `{type:web_search}` / `{type:x_search}` ride the *same* Responses turn as the reply: the search **is** the thinking. No nested search hop, no second model call, no URL-list-only discovery — grok-4.6 searches with the same capability xAI exposes to its own apps through the public API surface. **The complete X search toolset is server-side too**: when it wants X detail, xAI emits one of `x_keyword_search` (keyword), `x_semantic_search` (semantic), `x_user_search` (user) or `x_thread_fetch` (thread/conversation) as a `custom_tool_call` — whichever mode fits — and the search already ran inside that turn. The bundle registers execute-only tools under those exact names so the DSH loop can finish the round; none of them is a second search pipeline.
 
 **Subscription, not API key.** Sign in with your SuperGrok / X Premium account through a device-code flow in Settings. No `XAI_API_KEY`, no dsh source patch. The plugin shares `~/.grok/auth.json` with the Grok CLI, so dsh and the CLI rotate the same grant in place — no separate login, no token copying.
 
@@ -27,7 +33,7 @@ The catalog `xai` API-key route stays untouched. This plugin registers `xai-oaut
 
 **Credentials engineered, not parked.** Atomic writes with owner-only read checks; refresh network outside the file lock with compare-and-write inside; in-process coalescer so a concurrent 401 cannot double-refresh the rotating grant; 403 kept strictly separate from 401 (entitlement gate ≠ expired token); secrets redacted from every diagnostic; CSRF-hardened local settings routes (loopback + Host pin + Origin + sec-fetch-site + JSON content-type).
 
-**Also in the box.** `grok_imagine` (pixels enter the session as image blocks and are visible to the next turn); an xAI-only proxy setting that leaves every other request untouched; coexistence with the `xai` API-key route; bilingual docs (EN/中文); Apache-2.0 with a NOTICE that credits its dsh-xai lineage; a CI workflow; 109+ tests.
+**Also in the box.** `grok_imagine` (pixels enter the session as image blocks and are visible to the next turn); an xAI-only proxy setting that leaves every other host untouched (while the plugin is loaded — the fetch hook is restored on dispose); coexistence with the `xai` API-key route; bilingual docs (EN/中文); Apache-2.0 with a NOTICE that credits its dsh-xai lineage; a CI workflow; 109+ tests.
 
 | | dsh-grok-kit | Typical Grok-listener plugins |
 | --- | --- | --- |
@@ -35,23 +41,23 @@ The catalog `xai` API-key route stays untouched. This plugin registers `xai-oaut
 | Search | **In the main request**: thinking *is* the search; the **full X toolset** (keyword / semantic / user / thread) runs server-side via `custom_tool_call` | Nested LLM hop (`grok-build-0.1` style), a single X mode, or no real search at all |
 | Model | grok-4.6: 500k context, `xhigh`, encrypted-reasoning continuity, future-proof descriptor | Static past-generation ids |
 | Picker | Mainline Grok only | Imagine / video / build variants mixed in |
-| Proxy | xAI-only, per-plugin, zero global impact | Global env takeover or none |
+| Proxy | xAI-only, per-plugin; hook restored on dispose | Global env takeover or none |
 | Output | `grok_imagine` — image blocks into the conversation | — |
 | Engineering | No dsh/pi-ai fork; tests + CI; Apache-2.0 + NOTICE | Often a source patch with no test suite |
 
 ## Install
 
-Install from a GitHub repository (replace `<your-name>` with the repository owner):
+Install from GitHub:
 
 ```sh
-dsh plugin --profile web add github:<your-name>/dsh-grok-kit
+dsh plugin --profile web add github:MaRi23333/dsh-grok-kit
 dsh web
 ```
 
 If you started the UI with `npx` and have no `dsh` on PATH, use the same package as the CLI:
 
 ```sh
-npx @deepseek-ai/dsh plugin --profile web add github:<your-name>/dsh-grok-kit
+npx @deepseek-ai/dsh plugin --profile web add github:MaRi23333/dsh-grok-kit
 npx @deepseek-ai/dsh web
 ```
 
@@ -67,7 +73,7 @@ See [INSTALL.md](INSTALL.md) / [INSTALL.zh.md](INSTALL.zh.md) for the full runbo
 
 ## Search
 
-The main request fuses xAI server-side search into the reply itself: web search runs inside the same Responses turn and shows up as **thinking** — no tool call, no separate search hop. That is the closest this bundle gets to the Grok Build experience on the public API.
+The main request fuses xAI server-side search into the reply itself: web search runs inside the same Responses turn and shows up as **thinking** — no tool call, no separate search hop. That mirrors the search experience of xAI's own apps, achieved through the public API surface.
 
 When the model wants more X-specific detail, xAI emits a `custom_tool_call` (`x_keyword_search` / `x_semantic_search` / …) into the stream — **that name appearing means an X search already ran on xAI's side inside this turn** (searching X is the model's way to fetch more, not a second search pipeline). The bundle registers execute-only tools under those exact names so the DSH loop can finish the round; their body only says the search already ran. Do not mistake them for nested search.
 
@@ -101,7 +107,7 @@ xAI traffic can be routed through an HTTP/HTTPS proxy without affecting any othe
 - Settings → xAI Grok → Network proxy (xAI only): enter the proxy URL and save it
 - or set `DSH_XAI_PROXY` (e.g. `http://127.0.0.1:8080`) via the dsh environment / config
 
-The proxy applies to x.ai traffic only; every other request stays direct.
+The proxy applies to `x.ai` traffic only; every other request stays direct. While the plugin is loaded the transparent fetch hook covers **all** `x.ai` requests in the process — including the coexisting catalog `xai` API-key route — and the hook is restored when the plugin/bundle is disposed.
 
 ## Credentials
 

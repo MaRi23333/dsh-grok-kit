@@ -20,7 +20,7 @@ import type {} from '@deepseek-ai/dsh-llm'
 import { createXaiOAuthAdapter } from './adapter.ts'
 import { registerXaiOAuthAuthRoutes } from './auth-routes.ts'
 import { XAI_OAUTH_ROUTE } from './ids.ts'
-import { applyXaiProxy } from './proxy.ts'
+import { applyXaiProxy, disposeXaiFetchHook } from './proxy.ts'
 import {
   createXaiOAuthSearchTokenSource,
   DEFAULT_XAI_SEARCH_MODEL,
@@ -196,8 +196,12 @@ export function resolveNestedSearchTools(config: Config): { backendSearch: boole
 /** Register the xai-oauth LLM route, OAuth routes, Imagine, and search wiring. */
 export function apply(ctx: Context, config: Config): void {
   // Proxy hook FIRST: every later x.ai request (OAuth, models, chat, search)
-  // goes through globalThis.fetch and is routed by the hook.
-  applyXaiProxy(config.proxyUrl)
+  // goes through globalThis.fetch and is routed by the hook. Registered as an
+  // effect so the hook is restored and the ProxyAgent closed on dispose.
+  ctx.effect(() => {
+    applyXaiProxy(config.proxyUrl)
+    return () => disposeXaiFetchHook()
+  }, 'dsh-grok-kit: xAI proxy hook')
 
   const session = new XaiOAuthSession(new XaiOAuthCredentialStore(), () => {
     ctx.emit('llm/adapters-updated')

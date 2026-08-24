@@ -3,18 +3,17 @@
  *
  * Style matches the other local dsh plugins: this bundle owns one setting
  * of its own (stored in `$DSH_HOME/.xai-oauth-proxy.json`, editable on its
- * settings page). Nothing global is touched:
- *  - no undici global dispatcher replacement,
- *  - no global proxy environment variables are read or written,
- *  - a transparent `globalThis.fetch` hook routes ONLY `x.ai` origins
- *    (api.x.ai / x.ai and subdomains) through this plugin's ProxyAgent and
- *    passes every other request to the original fetch untouched — DSH
- *    itself, DeepSeek and every other provider keep their direct routes
- *    with zero behavior change.
+ * settings page). Nothing global is touched except one transparent
+ * `globalThis.fetch` hook that routes ONLY `x.ai` origins (api.x.ai / x.ai
+ * and subdomains) through this plugin's ProxyAgent and passes every other
+ * request to the original fetch untouched. While the plugin is loaded the
+ * hook applies to ALL x.ai requests in this process — including the catalog
+ * `xai` API-key route — and it is restored on plugin dispose.
  *
  * Effective URL precedence: stored setting > plugin config `proxyUrl` >
  * `DSH_XAI_PROXY` (plugin-scoped env for headless/CLI use). HTTP/HTTPS
- * proxy URLs only; undici's ProxyAgent does not speak SOCKS.
+ * proxy URLs only; undici's ProxyAgent does not speak SOCKS. URLs with
+ * embedded credentials are rejected and never persisted.
  */
 import { mkdirSync, readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
@@ -30,7 +29,7 @@ export function xaiProxyPath(dshHome?: string): string {
   return resolve(join(resolveDshHome(dshHome), PROXY_FILENAME))
 }
 
-/** Read the plugin's own stored proxy URL ('' = off). */
+/** Read the plugin's own stored proxy URL ('' = off; invalid/userinfo values are dropped). */
 export function readStoredProxyUrl(): string {
   try {
     const doc = JSON.parse(readFileSync(xaiProxyPath(), 'utf8')) as {
@@ -38,7 +37,7 @@ export function readStoredProxyUrl(): string {
       proxyUrl?: unknown
     }
     if (doc.version !== PROXY_FILE_VERSION) return ''
-    return typeof doc.proxyUrl === 'string' ? doc.proxyUrl.trim() : ''
+    return validProxyUrl(typeof doc.proxyUrl === 'string' ? doc.proxyUrl.trim() : '') ?? ''
   } catch {
     return ''
   }
@@ -92,6 +91,9 @@ export function validProxyUrl(url: string): string | undefined {
     const parsed = new URL(trimmed)
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return undefined
     if (parsed.hostname.length === 0) return undefined
+    // Refuse embedded credentials (username:password@host): the stored proxy
+    // file, the GET /auth/proxy response and logs must never carry them.
+    if (parsed.username !== '' || parsed.password !== '') return undefined
     return trimmed
   } catch {
     return undefined
@@ -117,12 +119,14 @@ export function setXaiProxyUrl(url: string): boolean {
  * Install a transparent global-fetch hook that routes ONLY x.ai origins
  * through this plugin's ProxyAgent; every other request goes to the
  * original fetch untouched. Idempotent; without a configured URL it is a
- * pure pass-through.
+ * pure pass-through. Returns a disposer that restores the original fetch
+ * and closes the ProxyAgent (used by the plugin's ctx.effect cleanup).
  */
-export function installXaiFetchHook(): void {
-  if (hookInstalled) return
+export function installXaiFetchHook(): () => void {
+  if (hookInstalled) return disposeXaiFetchHook
   hookInstalled = true
-  const original = globalThis.fetch.bind(globalThis)
+  originalFetch = globalThis.fetch
+  const original = originalFetch.bind(globalThis)
   globalThis.fetch = ((input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]): Promise<Response> => {
     if (proxyAgent !== null && isXaiUrl(input)) {
       return undiciFetch(input as Parameters<typeof undiciFetch>[0], {
@@ -132,16 +136,29 @@ export function installXaiFetchHook(): void {
     }
     return original(input, init)
   }) as typeof fetch
+  return disposeXaiFetchHook
 }
 
-/** Effective proxy URL: stored setting > config `proxyUrl` > `DSH_XAI_PROXY`. */
+/** Restore the original fetch and close the proxy agent. Idempotent. */
+export function disposeXaiFetchHook(): void {
+  if (!hookInstalled) return
+  hookInstalled = false
+  const previous = proxyAgent
+  proxyAgent = null
+  if (previous !== null) void previous.close().catch(() => undefined)
+  if (originalFetch !== undefined) globalThis.fetch = originalFetch
+  originalFetch = undefined
+}
+
+let originalFetch: typeof fetch | undefined
+
+/** Effective proxy URL: stored setting > config `proxyUrl` > `DSH_XAI_PROXY`. Invalid/userinfo values resolve to ''. */
 export function resolveXaiProxyUrl(configUrl?: string): string {
   const stored = readStoredProxyUrl()
   if (stored !== '') return stored
-  if (nonBlank(configUrl)) return configUrl.trim()
   const env = process.env.DSH_XAI_PROXY
-  if (nonBlank(env)) return env.trim()
-  return ''
+  const candidate = nonBlank(configUrl) ? configUrl.trim() : nonBlank(env) ? env.trim() : ''
+  return validProxyUrl(candidate) ?? ''
 }
 
 /** Install the hook and apply the current URL. Returns the effective URL, '' when unset/invalid. */

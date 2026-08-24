@@ -1,3 +1,11 @@
+//
+
+// Derived from dsh-xai (https://github.com/MirDie/dsh-xai), Apache-2.0.
+
+// Modified for dsh-grok-kit — see NOTICE for the full attribution.
+
+//
+
 /** Same-origin Web settings routes for xAI Grok OAuth. */
 
 import type { IncomingMessage, ServerResponse } from 'node:http'
@@ -265,6 +273,11 @@ export function isTrustedRequest(
 /** Client-side request error (bad content-type / bad body); reported as 400. */
 class BadRequestError extends Error {}
 
+/** Request body exceeded the read ceiling; reported as 413. */
+class PayloadTooLargeError extends Error {}
+
+const MAX_JSON_BODY_BYTES = 1024 * 1024
+
 /**
  * Accept a JSON body: no content-type header (no body) or application/json.
  * A cross-site form cannot send application/json, so this rejects form posts;
@@ -276,17 +289,25 @@ export function jsonContentTypeAccepted(contentType: string): boolean {
 }
 
 function errorStatus(error: unknown): number {
+  if (error instanceof PayloadTooLargeError) return 413
   if (error instanceof BadRequestError) return 400
   if (error instanceof SyntaxError) return 400
   return 500
 }
 
-async function readJson(req: IncomingMessage): Promise<unknown> {
+/** Read a JSON body with a hard size ceiling (exported for tests). */
+export async function readJson(req: IncomingMessage): Promise<unknown> {
   if (!jsonContentTypeAccepted(req.headers['content-type'] ?? '')) {
     throw new BadRequestError('content-type must be application/json')
   }
   const chunks: Buffer[] = []
-  for await (const chunk of req) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+  let size = 0
+  for await (const chunk of req) {
+    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+    size += buf.byteLength
+    if (size > MAX_JSON_BODY_BYTES) throw new PayloadTooLargeError('request body too large')
+    chunks.push(buf)
+  }
   const text = Buffer.concat(chunks).toString('utf8').trim()
   if (text.length === 0) return {}
   return JSON.parse(text) as unknown

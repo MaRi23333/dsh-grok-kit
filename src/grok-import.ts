@@ -1,3 +1,11 @@
+//
+
+// Derived from dsh-xai (https://github.com/MirDie/dsh-xai), Apache-2.0.
+
+// Modified for dsh-grok-kit — see NOTICE for the full attribution.
+
+//
+
 /**
  * Grok CLI auth.json: parse, probe, and write-in-place.
  * When the store points at this file, dsh login/refresh/logout mutate the

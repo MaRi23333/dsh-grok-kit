@@ -1,8 +1,17 @@
+//
+
+// Derived from dsh-xai (https://github.com/MirDie/dsh-xai), Apache-2.0.
+
+// Modified for dsh-grok-kit — see NOTICE for the full attribution.
+
+//
+
 /** English copy for the xAI Grok settings page. */
 export const en = {
   nav: 'xAI Grok',
   title: 'xAI Grok',
   intro: 'Use your SuperGrok or X Premium subscription in dsh without an API key. grok-4.6 searches the web and X on the same turn as the reply.',
+  unofficialNotice: 'Unofficial integration: not an xAI or X product; no affiliation or endorsement. OAuth availability depends on account entitlement and current xAI policies.',
   loadingAccount: 'Loading account…',
   signedOut: 'Not signed in',
   signedOutShared: 'Not signed in · will use ~/.grok/auth.json',
@@ -45,6 +54,7 @@ export const zh: { [Key in XaiOAuthSettingsKey]: string } = {
   nav: 'xAI Grok',
   title: 'xAI Grok',
   intro: '使用 SuperGrok 或 X Premium 订阅在 dsh 中调用 Grok，无需 API Key。grok-4.6 会在同一轮回复里做网页和 X 搜索。',
+  unofficialNotice: '非官方集成：与 xAI / X 无隶属或背书关系；OAuth 可用性取决于账户资格与 xAI 当前策略。',
   loadingAccount: '正在加载账户信息…',
   signedOut: '尚未登录',
   signedOutShared: '尚未登录 · 将使用 ~/.grok/auth.json',

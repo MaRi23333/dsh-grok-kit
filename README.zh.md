@@ -4,6 +4,12 @@
 
 在 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 里用 SuperGrok / X Premium 订阅登录 xAI，调用 Grok。不需要 `XAI_API_KEY`，也不需要改 dsh 源码。
 
+> **非官方项目与商标声明**
+>
+> `dsh-grok-kit` 是由社区独立开发的 DeepSeek Harness 第三方插件，不是 xAI、X、DeepSeek、DeepSeek Harness 或这些项目维护者的官方产品，也不代表它们。本项目不主张已获得上述主体对本插件或其名称的个别许可、背书、赞助或认可。Grok、xAI、X、DeepSeek、DeepSeek Harness 及相关名称与标识归各自权利人所有；本项目仅为准确说明兼容对象而提及这些名称。
+>
+> 本插件的 OAuth 兼容性可能受订阅档位、地区、xAI 条款、账户资格、速率限制和后续服务变更影响。用户应自行确认其账户与用途获准；本项目不保证持续可用性或兼容性，也不提供 xAI/Grok 账号、订阅或官方支持。
+
 这是一个独立的 dsh bundle，会提供：
 
 - Settings 面板里的 SuperGrok / X Premium OAuth 登录，并自动刷新 token（device-code 流程）
@@ -17,7 +23,7 @@
 
 ## 核心卖点
 
-**Grok 完整搜索实力，融合进主循环——招牌特性。** `{type:web_search}` / `{type:x_search}` 和回复乘在**同一个** Responses turn 里：**搜索本身就是 thinking**。没有嵌套搜索跳数、没有第二次模型调用、也不是只返回 URL 列表的廉价发现——grok-4.6 拿出全部搜索能力，和 Grok Build 一模一样，走公开 API。**完整的 X 搜索工具集同样在服务端**：当它想从 X 拿信息时，xAI 会按需吐出 `x_keyword_search`（关键词）/ `x_semantic_search`（语义）/ `x_user_search`（用户）/ `x_thread_fetch`（话题/线程）之一的 `custom_tool_call`——哪种模式合适用哪种，**搜索已经在那一轮的服务端做完**。插件按这些精确名字注册只执行的工具，让 DSH 主循环收尾该轮；它们没有一个是第二条搜索流水线。
+**Grok 完整搜索实力，融合进主循环——招牌特性。** `{type:web_search}` / `{type:x_search}` 和回复乘在**同一个** Responses turn 里：**搜索本身就是 thinking**。没有嵌套搜索跳数、没有第二次模型调用、也不是只返回 URL 列表的廉价发现——grok-4.6 拿出完整的搜索能力，与 xAI 自家应用通过公开 API 呈现的能力同级。**完整的 X 搜索工具集同样在服务端**：当它想从 X 拿信息时，xAI 会按需吐出 `x_keyword_search`（关键词）/ `x_semantic_search`（语义）/ `x_user_search`（用户）/ `x_thread_fetch`（话题/线程）之一的 `custom_tool_call`——哪种模式合适用哪种，**搜索已经在那一轮的服务端做完**。插件按这些精确名字注册只执行的工具，让 DSH 主循环收尾该轮；它们没有一个是第二条搜索流水线。
 
 **订阅直连，不备 Key。** 在设置页用 SuperGrok / X Premium 账号走 device-code 登录。不需要 `XAI_API_KEY`，不改 dsh 源码。插件与 Grok CLI 共用 `~/.grok/auth.json`——dsh 和 CLI 原地轮换同一把 grant，不用单独登录、不用拷贝 token。
 
@@ -27,7 +33,7 @@
 
 **凭证是工程，不是摆设。** 原子写入 + 属主只读校验；刷新在网络层（锁外）、文件锁内只做 compare-and-write；进程内 coalescer 让并发 401 不会双烧轮换 grant；403 严格与 401 分开（档位门 ≠ token 过期）；所有报错脱敏；设置路由 CSRF 纵深防御（loopback + Host pin + Origin + sec-fetch-site + JSON content-type）。
 
-**其它亮点。** `grok_imagine`（像素以 image block 进会话、下一轮模型看得见）；只对 x.ai 生效的独立代理设置，其余请求零影响；与 `xai` API-Key 路由并存；双语文档（EN/中文）；Apache-2.0 + NOTICE（标注 dsh-xai 血统）；CI workflow；109+ 测试。
+**其它亮点。** `grok_imagine`（像素以 image block 进会话、下一轮模型看得见）；只对 x.ai 生效的独立代理设置，其余主机零影响（插件加载期间生效，卸载时恢复）；与 `xai` API-Key 路由并存；双语文档（EN/中文）；Apache-2.0 + NOTICE（标注 dsh-xai 血统）；CI workflow；109+ 测试。
 
 | | dsh-grok-kit | 市面上常见的 Grok 插件 |
 | --- | --- | --- |
@@ -35,23 +41,23 @@
 | 搜索 | **在主请求里**：thinking 即搜索；**完整 X 工具集**（关键词 / 语义 / 用户 / 话题）在服务端走 `custom_tool_call` | 再开一轮 LLM（`grok-build-0.1` 式）、单一 X 模式、或根本没有真搜索 |
 | 模型 | grok-4.6：500k 上下文、`xhigh`、加密推理连续、未来模型免更新 | 旧世代静态 id |
 | 选择器 | 只有主线 Grok | Imagine / video / build 变体混在一起 |
-| 代理 | 仅 x.ai、插件级、零全局影响 | 全局环境变量接管或没有 |
+| 代理 | 仅 x.ai、插件级；卸载时恢复 | 全局环境变量接管或没有 |
 | 出图 | `grok_imagine`——图片以块进对话 | —— |
 | 工程 | 不 fork dsh/pi-ai；测试 + CI；Apache-2.0 + NOTICE | 常是打补丁且没有测试 |
 
 ## 安装
 
-从 GitHub 安装（把 `<your-name>` 换成仓库所有者）：
+从 GitHub 安装：
 
 ```sh
-dsh plugin --profile web add github:<your-name>/dsh-grok-kit
+dsh plugin --profile web add github:MaRi23333/dsh-grok-kit
 dsh web
 ```
 
 用 `npx` 起的 Web、PATH 里没有 `dsh` 时，把前面的 `dsh` 换成 `npx @deepseek-ai/dsh`：
 
 ```sh
-npx @deepseek-ai/dsh plugin --profile web add github:<your-name>/dsh-grok-kit
+npx @deepseek-ai/dsh plugin --profile web add github:MaRi23333/dsh-grok-kit
 npx @deepseek-ai/dsh web
 ```
 
@@ -67,7 +73,7 @@ npx @deepseek-ai/dsh web
 
 ## 搜索
 
-主请求把 xAI 服务端搜索融入回复本身：网页检索在**同一个 Responses turn** 里完成，**以 thinking 呈现——不调用任何工具，也不是单独再跑一次搜索**。这是本插件在公开 API 上最接近 Grok Build 体验的做法。
+主请求把 xAI 服务端搜索融入回复本身：网页检索在**同一个 Responses turn** 里完成，**以 thinking 呈现——不调用任何工具，也不是单独再跑一次搜索**。这与 xAI 自家应用的搜索体验同源，由公开 API 实现。
 
 当模型想要更多 X 上的细节时，xAI 会在流里吐一个 `custom_tool_call`（`x_keyword_search` / `x_semantic_search` 等）——**这个工具名露头就说明 xAI 侧在同一轮里已经把 X 搜索做完了**（模型去搜 X 是补充信息的手段，不是第二条搜索流水线）。插件按这些精确名字注册了只执行的工具（工具体只会说"搜索已在服务端跑过"），让 DSH 主循环能正常收尾这一轮。不要把它们当成嵌套搜索。
 
@@ -101,7 +107,7 @@ xAI 流量可以走 HTTP/HTTPS 代理，不影响任何其他请求：
 - 设置 → xAI Grok → 网络代理（仅 xAI）：输入代理地址并保存
 - 或在 dsh 环境 / config 里设置 `DSH_XAI_PROXY`（例如 `http://127.0.0.1:8080`）
 
-代理只对 x.ai 域名生效，其余请求保持直连。
+代理只对 `x.ai` 域名生效，其余请求保持直连。插件加载期间这个透明 fetch hook 覆盖本进程内**所有** x.ai 请求——包括并存的 `xai` API-Key 路由——插件/ bundle 卸载时恢复直连。
 
 ## 凭证
 

@@ -13,8 +13,16 @@ src/redact.ts, src/invariant.ts, src/bin.ts, src/client/, build config).
 Server-side search mapping and tool formatting in src/search.ts and
 src/tools.ts are adapted from the dsh-xai web-search fork by lonefisher
 (https://github.com/lonefisher/dsh-xai), also under the Apache License,
-Version 2.0, and follow the tool-registration pattern of
-@deepseek-ai/dsh-tool-web (MIT License, Copyright DeepSeek).
+Version 2.0. The tool registration/presentation interface used here
+(`defineTool` and the result views imported from @deepseek-ai/dsh-tools)
+follows the same public pattern as DeepSeek's dsh-tool-web bundle; no code
+was copied from dsh-tool-web — check its own LICENSE if you vendor that
+bundle separately.
 
 The outbound proxy implementation (src/proxy.ts) is original to
 dsh-grok-kit contributors.
+
+Grok, xAI, X, DeepSeek, DeepSeek Harness and related names and marks belong
+to their respective owners; this project uses them only to identify
+compatible services. dsh-grok-kit is an unofficial community integration
+(see the README notice).

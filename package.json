@@ -1,6 +1,6 @@
 {
   "name": "dsh-grok-kit",
-  "description": "xAI Grok in DeepSeek Harness: SuperGrok/X Premium OAuth, grok-4.6 chat with mixed server-side web/X search, and Imagine",
+  "description": "Unofficial community plugin for DeepSeek Harness: use a SuperGrok / X Premium subscription via OAuth, with grok-4.6 chat, fused server-side web/X search, and Imagine",
   "version": "0.1.0",
   "private": true,
   "keywords": [
@@ -14,7 +14,16 @@
   ],
   "type": "module",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.19.0"
+  },
+  "packageManager": "npm@11.19.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MaRi23333/dsh-grok-kit.git"
+  },
+  "homepage": "https://github.com/MaRi23333/dsh-grok-kit#readme",
+  "bugs": {
+    "url": "https://github.com/MaRi23333/dsh-grok-kit/issues"
   },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
