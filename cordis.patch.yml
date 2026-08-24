@@ -1,0 +1,16 @@
+# Optional SuperGrok / X Premium route over the base composition.
+# A saved agent-default-model setting still wins over this bundle value.
+
+- id: agent-default-model
+  config:
+    provider: xai-oauth
+    model: grok-4.6
+
+- insert:
+    - id: dsh-grok-kit
+      name: dsh-grok-kit
+      config:
+        # Mix xAI server-side web_search / x_search into the main grok-4.6 request.
+        # DSH native function web_search is stripped from the payload to avoid
+        # HTTP 400 Duplicate tool names: web_search.
+        backendSearch: true

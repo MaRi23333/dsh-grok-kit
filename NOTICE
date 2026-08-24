@@ -1,0 +1,20 @@
+dsh-grok-kit
+Copyright 2026 dsh-grok-kit contributors
+
+This product includes software derived from dsh-xai
+(https://github.com/MirDie/dsh-xai), Copyright 2026 dsh-xai contributors
+(JiaXin Liao), licensed under the Apache License, Version 2.0. Derived parts
+include the OAuth credential store, session/catalog management, pi-ai adapter
+plumbing, device-code auth routes, Grok CLI import, settings page, and CLI
+entries (src/store.ts, src/session.ts, src/catalog.ts, src/auth.ts,
+src/auth-routes.ts, src/adapter.ts, src/grok-import.ts, src/ids.ts,
+src/redact.ts, src/invariant.ts, src/bin.ts, src/client/, build config).
+
+Server-side search mapping and tool formatting in src/search.ts and
+src/tools.ts are adapted from the dsh-xai web-search fork by lonefisher
+(https://github.com/lonefisher/dsh-xai), also under the Apache License,
+Version 2.0, and follow the tool-registration pattern of
+@deepseek-ai/dsh-tool-web (MIT License, Copyright DeepSeek).
+
+The outbound proxy implementation (src/proxy.ts) is original to
+dsh-grok-kit contributors.

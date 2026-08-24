@@ -1,0 +1,13 @@
+node_modules/
+*.log
+.DS_Store
+*.tmp
+.env
+.env.*
+coverage/
+
+# Internal handoff stays out of a published repo (local paths).
+HANDOFF.md
+
+# Internal dev docs (design-parity notes with local-machine paths) stay local too.
+docs/
