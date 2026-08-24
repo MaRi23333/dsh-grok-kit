@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -115,7 +115,7 @@ describe('XaiOAuthCredentialStore', () => {
         email: 'keep@example.com',
         first_name: 'Ada',
       },
-    }, null, 2)}\n`)
+    }, null, 2)}\n`, { mode: 0o600 })
     const store = new XaiOAuthCredentialStore(filename)
     expect(store.sharedWithGrokCli).toBe(true)
     expect(await store.read(XAI_PI_PROVIDER)).toMatchObject({ type: 'oauth', access: 'old-access' })
@@ -143,8 +143,8 @@ describe('XaiOAuthCredentialStore', () => {
     const dshHome = join(home, 'dsh')
     await mkdir(join(userHome, '.grok'), { recursive: true })
     await mkdir(dshHome, { recursive: true })
-    await writeFile(join(userHome, '.grok', 'auth.json'), '{}\n')
-    await writeFile(join(dshHome, '.xai-oauth-auth.json'), '{}\n')
+    await writeFile(join(userHome, '.grok', 'auth.json'), '{}\n', { mode: 0o600 })
+    await writeFile(join(dshHome, '.xai-oauth-auth.json'), '{}\n', { mode: 0o600 })
     expect(resolveXaiOAuthStorePath({ userHome, dshHome }).replaceAll('\\', '/'))
       .toMatch(/\/user\/.grok\/auth\.json$/)
   })
@@ -155,5 +155,19 @@ describe('XaiOAuthCredentialStore', () => {
     expect(grok).not.toContain('/.grok/')
     const store = new XaiOAuthCredentialStore(join(tmpdir(), 'dsh-xai-lockpath', '.grok', 'auth.json'))
     expect(store.lockFilename.replaceAll('\\', '/')).toMatch(/\/dsh-xai-lockpath\/.dsh\/.xai-oauth-auth\.json$/)
+  })
+
+  it.runIf(process.platform !== 'win32')('rejects a credential file readable beyond the owner (Linux)', async () => {
+    const store = await tempStore()
+    await store.modify(XAI_PI_PROVIDER, async () => ({
+      type: 'oauth',
+      access: 'a',
+      refresh: 'r',
+      expires: 1,
+    }))
+    await chmod(store.filename, 0o644)
+    await expect(store.read(XAI_PI_PROVIDER)).rejects.toThrow(/readable beyond its owner/)
+    await chmod(store.filename, 0o600)
+    await expect(store.read(XAI_PI_PROVIDER)).resolves.toMatchObject({ type: 'oauth', access: 'a' })
   })
 })

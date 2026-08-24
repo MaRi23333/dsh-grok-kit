@@ -67,7 +67,7 @@ describe('importGrokAuth', () => {
     const grokFile = join(dir, 'auth.json')
     const dshFile = join(dir, 'dsh.json')
     const original = `${JSON.stringify(grokShape, null, 2)}\n`
-    await writeFile(grokFile, original)
+    await writeFile(grokFile, original, { mode: 0o600 })
     const store = new XaiOAuthCredentialStore(dshFile)
     await importGrokAuth(store, grokFile)
     expect(await readFile(grokFile, 'utf8')).toBe(original)
@@ -80,7 +80,7 @@ describe('importGrokAuth', () => {
     const missing = await probeGrokAuth(join(dir, 'missing.json'))
     expect(missing.available).toBe(false)
     const grokFile = join(dir, 'auth.json')
-    await writeFile(grokFile, JSON.stringify(grokShape))
+    await writeFile(grokFile, JSON.stringify(grokShape), { mode: 0o600 })
     const present = await probeGrokAuth(grokFile)
     expect(present.available).toBe(true)
     expect(JSON.stringify(present)).not.toContain('access-from-grok')
