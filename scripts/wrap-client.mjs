@@ -3,21 +3,16 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const lib = join(dirname(fileURLToPath(import.meta.url)), '..', 'lib')
-const filename = ['client.js', 'client.cjs']
-  .map(name => join(lib, name))
-  .find(path => {
-    try {
-      readFileSync(path)
-      return true
-    } catch {
-      return false
-    }
-  })
-if (filename === undefined) throw new Error('tsdown did not emit lib/client.js or lib/client.cjs')
-const source = readFileSync(filename, 'utf8')
 const out = join(lib, 'client.js')
+const cjs = join(lib, 'client.cjs')
+
+// Always repack from the tsdown CJS bundle produced by THIS build. Checking an
+// already-wrapped lib/client.js and skipping would keep a stale client.js
+// whenever tsdown stops cleaning it (the current clean phase masks this).
+const source = readFileSync(cjs, 'utf8')
 if (source.includes('window.__ModuleLoader__')) {
-  if (filename !== out) writeFileSync(out, source)
+  // tsdown emitted the wrapper shape itself; keep it as-is.
+  if (cjs !== out) writeFileSync(out, source)
   process.exit(0)
 }
 

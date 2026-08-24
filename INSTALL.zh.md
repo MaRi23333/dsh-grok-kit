@@ -85,4 +85,4 @@ Web UI：
 dsh plugin --profile web remove dsh-grok-kit
 ```
 
-如果要删掉本地 OAuth 文件，先到设置页退出登录。只 `remove` 包装不会删除 `~/.grok/auth.json`（以及可能残留的 `$DSH_HOME/.xai-oauth-auth.json`）。
+如果要删掉本地 OAuth 文件，先到设置页退出登录。只 `remove` 包装不会删除 `~/.grok/auth.json`（以及可能残留的 `$DSH_HOME/.xai-oauth-auth.json` / `$DSH_HOME/.xai-oauth-proxy.json`）。

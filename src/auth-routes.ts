@@ -230,10 +230,18 @@ function loopbackHostname(hostHeader: string): string | undefined {
 }
 
 function trustedRequest(req: IncomingMessage): boolean {
-  const remote = req.socket.remoteAddress
+  return isTrustedRequest(req.socket.remoteAddress, req.headers, req.method ?? 'GET')
+}
+
+/** Trust header/remote shape for the plugin's Web routes. Exported for tests. */
+export function isTrustedRequest(
+  remote: string | undefined,
+  headers: { host?: string | undefined; origin?: string | undefined; 'sec-fetch-site'?: string | undefined },
+  method: string,
+): boolean {
   if (remote !== '127.0.0.1' && remote !== '::1' && remote !== '::ffff:127.0.0.1') return false
-  if (req.headers['sec-fetch-site'] === 'cross-site') return false
-  const host = req.headers.host
+  if (headers['sec-fetch-site'] === 'cross-site') return false
+  const host = headers.host
   if (host === undefined) return false
   // PIN the Host header to an explicit loopback name. Otherwise a DNS-rebinding
   // page (attacker domain resolving to 127.0.0.1) satisfies the same-origin
@@ -241,8 +249,12 @@ function trustedRequest(req: IncomingMessage): boolean {
   // from a hostile page — enough to CSRF login/import/logout or to install a
   // proxy URL that later captures the x.ai bearer.
   if (loopbackHostname(host) === undefined) return false
-  const origin = req.headers.origin
-  if (origin === undefined) return true
+  const origin = headers.origin
+  // Same-origin browsers send Origin on every POST; non-browser clients and
+  // some privacy modes do not. Requiring Origin on writes closes the
+  // local-process CSRF slot (a local script could otherwise POST logout /
+  // set-proxy with a forged host). Status GETs stay open.
+  if (origin === undefined) return method === 'GET'
   try {
     return new URL(origin).host === new URL(`http://${host}`).host
   } catch {

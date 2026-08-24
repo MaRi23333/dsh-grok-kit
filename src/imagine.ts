@@ -17,7 +17,8 @@ export const XAI_IMAGES_URL = 'https://api.x.ai/v1/images/generations'
 export const DEFAULT_IMAGINE_MODEL = 'grok-imagine-image-2.0'
 const FALLBACK_IMAGINE_MODEL = 'grok-imagine-image'
 const USER_AGENT = 'dsh-grok-kit/0.1.0'
-const MAX_N = 4
+/** v1 renders exactly one image per call (the API bills per n). */
+const MAX_N = 1
 
 const PNG = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
 const JPEG = Uint8Array.from([0xff, 0xd8, 0xff])
@@ -171,7 +172,7 @@ export function applyGrokImagineTool(ctx: Context, options: GrokImagineOptions):
       const prompt = typeof args.prompt === 'string' ? args.prompt.trim() : ''
       if (prompt.length === 0) throw new Error('prompt must be a non-empty string')
       const n = typeof args.n === 'number' && Number.isFinite(args.n) ? Math.trunc(args.n) : 1
-      if (n < 1 || n > MAX_N) throw new Error(`n must be between 1 and ${MAX_N}`)
+      if (n < 1 || n > MAX_N) throw new Error('n must be 1: this plugin renders one image per call (the API bills per n)')
       const resolution = args.resolution
       if (resolution !== undefined && resolution !== '1k' && resolution !== '2k') {
         throw new Error('resolution must be 1k or 2k')

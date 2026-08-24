@@ -15,6 +15,7 @@ import {
   type StreamOptions,
 } from '@earendil-works/pi-ai'
 import type { XaiOAuthTokenSource } from './token-source.ts'
+import { safeMessage } from './redact.ts'
 
 export const XAI_SERVER_X_SEARCH_REJECT_NAMES = [
   'x_keyword_search',
@@ -54,6 +55,20 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+/**
+ * Read the function name out of any client-tool shape pi-ai may serialize:
+ * flat `{type:"function", name}` (current Responses), nested
+ * `{type:"function", function:{name}}` (completions), or `{type:"custom", name}`
+ * (grammar path). Stripping by name must keep working if upstream changes the
+ * shape, otherwise the Duplicate-tool-names 400 comes back.
+ */
+function toolNameOf(tool: unknown): string | undefined {
+  if (!isRecord(tool) || tool['type'] !== 'function' && tool['type'] !== 'custom') return undefined
+  if (typeof tool['name'] === 'string') return tool['name']
+  const nested = tool['function']
+  return isRecord(nested) && typeof nested['name'] === 'string' ? nested['name'] : undefined
+}
+
 function isRetriableChat401(event: AssistantMessageEvent): boolean {
   return event.type === 'error' && /\b401\b/.test(event.error.errorMessage ?? '')
 }
@@ -90,8 +105,8 @@ export function applyXaiResponsesPayload(
   if (options.backendSearch) {
     const tools = Array.isArray(params['tools']) ? [...params['tools']] : []
     const stripped = tools.filter(tool => {
-      if (!isRecord(tool) || tool['type'] !== 'function') return true
-      return typeof tool['name'] !== 'string' || !STRIP_FUNCTION_NAMES.has(tool['name'])
+      const name = toolNameOf(tool)
+      return name === undefined || !STRIP_FUNCTION_NAMES.has(name)
     })
     for (const type of ['web_search', 'x_search'] as const) {
       if (!stripped.some(tool => isRecord(tool) && tool['type'] === type)) {
@@ -184,7 +199,10 @@ function retryOn401(
         out.push(rewriteBackendSearchError(step.value, options.backendSearch))
       }
       out.end()
-    } catch {
+    } catch (error: unknown) {
+      // Never drop an error silently: an empty stream looks like a hang on the
+      // user side. The host idle watchdog would eventually fire, but log now.
+      console.error(`dsh-grok-kit: chat stream failed: ${safeMessage(error)}`)
       out.end()
     }
   })()
@@ -202,7 +220,8 @@ function forwardStream(
         out.push(rewriteBackendSearchError(event, backendSearch))
       }
       out.end()
-    } catch {
+    } catch (error: unknown) {
+      console.error(`dsh-grok-kit: chat stream failed: ${safeMessage(error)}`)
       out.end()
     }
   })()

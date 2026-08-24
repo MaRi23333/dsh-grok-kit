@@ -96,7 +96,8 @@ xAI 的 refresh token 会轮换。共用 `~/.grok/auth.json` 后，dsh 和 Grok 
 - **搜索 403：** 部分 SuperGrok 档位登录成功但拒绝服务端搜索。嵌套路径可换 `searchModel`（如 `grok-4.5`）；主请求混合则设 `backendSearch: false`。
 - **Backend search** 已在组合里默认打开。搜完下一轮若因 `encrypted_content` 配对 400，再关 `backendSearch`。
 - **X 搜索 UI 桩：** pi-ai 会把 xAI 的 `custom_tool_call`（`x_keyword_search` / `x_semantic_search` 等）当成客户端工具。本插件注册只执行的桩，卡片标题是 “X search”，用来把这一轮跑完——搜索已经在服务端做过。多一轮很便宜。不要把这些桩名当成嵌套搜索。
-- **Windows ACL：** Node 的文件 mode 位不是 Windows ACL。凭证保护依赖 `$DSH_HOME` 目录对当前用户私有（`%USERPROFILE%\.dsh` 满足）；若把 `DSH_HOME` 迁到共享位置，请自行收紧目录 ACL。
+- **Windows ACL：** Node 的文件 mode 位不是 Windows ACL。Windows 上活凭证在 `~/.grok/auth.json`——靠用户 profile 目录私有（`%USERPROFILE%` 默认满足）。`$DSH_HOME`（写锁、遗留凭证/代理文件）同理；若任一目录在共享位置，请自行收紧 ACL。
+- **schema 默认 vs bundle 默认：** Config schema 的默认是 `backendSearch: false` + 嵌套工具开；本 bundle 靠 `cordis.patch.yml` 翻成文档所述的默认。手动 compose / 精简配置如果没有 patch，行为是嵌套搜索路径——装完用 `dsh --profile web --dump-config` 确认。
 - **只装一个 xAI 插件：** 不支持与旧 dsh-xai 同时安装。本插件会尽量优雅降级（唯一插件 id、路由/设置页守卫），但旧插件后加载时仍可能拖垮 profile 启动。请先 `dsh plugin --profile web remove dsh-xai`。
 
 ## 开发

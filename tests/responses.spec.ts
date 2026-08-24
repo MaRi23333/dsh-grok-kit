@@ -121,6 +121,22 @@ describe('applyXaiResponsesPayload', () => {
     }, GROK_46_MODEL, { backendSearch: true, retry401: false }) as Record<string, unknown>
     expect(next['tools']).toEqual([{ type: 'web_search' }, { type: 'x_search' }])
   })
+
+  it('strips colliding names in nested-function and custom shapes too', () => {
+    const next = applyXaiResponsesPayload({
+      tools: [
+        { type: 'function', function: { name: 'web_search' } },
+        { type: 'custom', name: 'x_search' },
+        { type: 'function', name: 'grok_web_search' },
+        { type: 'function', function: { name: 'bash' } },
+      ],
+    }, GROK_46_MODEL, { backendSearch: true, retry401: false }) as Record<string, unknown>
+    expect(next['tools']).toEqual([
+      { type: 'function', function: { name: 'bash' } },
+      { type: 'web_search' },
+      { type: 'x_search' },
+    ])
+  })
 })
 
 describe('wrapXaiResponsesProvider 401', () => {

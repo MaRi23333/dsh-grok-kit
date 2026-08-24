@@ -85,4 +85,4 @@ Optional. Set it from Settings → xAI Grok → Network proxy (xAI only), or via
 dsh plugin --profile web remove dsh-grok-kit
 ```
 
-Sign out from the account page first if the local OAuth document should be deleted. Removing the package leaves `~/.grok/auth.json` (and any leftover `$DSH_HOME/.xai-oauth-auth.json`) in place.
+Sign out from the account page first if the local OAuth document should be deleted. Removing the package leaves `~/.grok/auth.json` (and any leftover `$DSH_HOME/.xai-oauth-auth.json` / `$DSH_HOME/.xai-oauth-proxy.json`) in place.

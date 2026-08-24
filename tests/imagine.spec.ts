@@ -75,4 +75,21 @@ describe('applyGrokImagineTool', () => {
     })
     await expect(registered!.execute({ prompt: 'x' }, { signal: new AbortController().signal })).rejects.toThrow(/no session working directory/)
   })
+
+  it('rejects n > 1 before any network call (billed per n, renders one)', async () => {
+    const tokens: XaiOAuthTokenSource = { available: () => true, resolve: async () => 'tok' }
+    const session = { liveModelIds: () => undefined } as unknown as XaiOAuthSession
+    let registered: { execute: Function } | undefined
+    let called = false
+    applyGrokImagineTool({
+      tools: { register: (definition: typeof registered) => { registered = definition } },
+    } as never, {
+      tokens,
+      session,
+      resolveAttachments: () => ({ saveImage: async () => ({}) } as never),
+      fetch: async () => { called = true; return new Response('{}', { status: 200 }) },
+    })
+    await expect(registered!.execute({ prompt: 'x', n: 2 }, { signal: new AbortController().signal })).rejects.toThrow(/one image per call/)
+    expect(called).toBe(false)
+  })
 })

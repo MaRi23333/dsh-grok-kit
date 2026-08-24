@@ -11,3 +11,7 @@ HANDOFF.md
 
 # Internal dev docs (design-parity notes with local-machine paths) stay local too.
 docs/
+
+# Runtime artifacts if imagine runs from this directory
+.dsh-grok-kit/
+*.tsbuildinfo
