@@ -76,19 +76,21 @@
 
 ## 安装
 
-从 GitHub 安装到 Web profile：
+推荐固定到公开前已审核的提交，安装到 Web profile：
 
 ```sh
-dsh plugin --profile web add github:MaRi23333/dsh-grok-kit
+dsh plugin --profile web add github:MaRi23333/dsh-grok-kit#1e0892f4086446b7e549c118ab0bd42722ffd773
 dsh web
 ```
 
 如果 PATH 中没有 `dsh`，可以使用同一个 CLI 包：
 
 ```sh
-npx @deepseek-ai/dsh plugin --profile web add github:MaRi23333/dsh-grok-kit
+npx @deepseek-ai/dsh plugin --profile web add github:MaRi23333/dsh-grok-kit#1e0892f4086446b7e549c118ab0bd42722ffd773
 npx @deepseek-ai/dsh web
 ```
+
+完整 SHA 可让安装结果保持可复现。只有在愿意主动跟随后续 `main` 变化时才移除 `#1e0892f...`；那属于滚动安装，不是稳定推荐。
 
 打开 **设置 → xAI Grok**，完成登录后选择 `xai-oauth / grok-4.6` 或账号当前可见的其他主线 Grok 模型。已经保存在 dsh 设置中的模型仍有更高优先级。
 

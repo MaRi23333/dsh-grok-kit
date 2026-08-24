@@ -76,19 +76,21 @@ For domain, account, or date filters, disable `backendSearch` or enable `nestedS
 
 ## Install
 
-Install from GitHub into the Web profile:
+For a reproducible install, pin the pre-public audited commit in the Web profile:
 
 ```sh
-dsh plugin --profile web add github:MaRi23333/dsh-grok-kit
+dsh plugin --profile web add github:MaRi23333/dsh-grok-kit#1e0892f4086446b7e549c118ab0bd42722ffd773
 dsh web
 ```
 
 If `dsh` is not on PATH, run the same CLI package through `npx`:
 
 ```sh
-npx @deepseek-ai/dsh plugin --profile web add github:MaRi23333/dsh-grok-kit
+npx @deepseek-ai/dsh plugin --profile web add github:MaRi23333/dsh-grok-kit#1e0892f4086446b7e549c118ab0bd42722ffd773
 npx @deepseek-ai/dsh web
 ```
+
+The full SHA keeps the installed source reproducible. Remove `#1e0892f...` only if you intentionally want a rolling install that follows later changes on `main`; rolling installs are not the stable recommendation.
 
 Open **Settings → xAI Grok**, finish sign-in, then choose `xai-oauth / grok-4.6` or another mainline Grok model currently visible to the account. A model already saved in dsh settings still takes precedence.
 

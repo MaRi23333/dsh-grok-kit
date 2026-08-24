@@ -12,11 +12,13 @@
 
 ## 装进 web profile
 
-从 GitHub 安装：
+推荐从 GitHub 做可复现安装：
 
 ```sh
-dsh plugin --profile web add github:MaRi23333/dsh-grok-kit
+dsh plugin --profile web add github:MaRi23333/dsh-grok-kit#1e0892f4086446b7e549c118ab0bd42722ffd773
 ```
+
+完整 SHA 是公开前已审核锚点。只有在愿意主动跟随后续 `main` 变化时才移除它；那属于滚动安装，不是稳定推荐。
 
 本地检出目录也可以直接装：
 
@@ -27,7 +29,7 @@ dsh plugin --profile web add ./dsh-grok-kit
 从 dsh 源码目录启动时：
 
 ```sh
-pnpm dsh plugin --profile web add github:MaRi23333/dsh-grok-kit
+pnpm dsh plugin --profile web add github:MaRi23333/dsh-grok-kit#1e0892f4086446b7e549c118ab0bd42722ffd773
 ```
 
 仓库已经带构建好的 `lib/`，git 安装不跑构建脚本。若你装到的还是旧提交、pnpm 仍提示 `allowBuilds` / `onlyBuiltDependencies`，把提示里的包名写进该 profile 的 `pnpm-workspace.yaml` 后再 `add` 一次：

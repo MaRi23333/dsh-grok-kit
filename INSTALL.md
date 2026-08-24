@@ -12,11 +12,13 @@ Idempotent runbook for humans and automation agents.
 
 ## Install into the web profile
 
-Install from GitHub:
+Recommended reproducible install from GitHub:
 
 ```sh
-dsh plugin --profile web add github:MaRi23333/dsh-grok-kit
+dsh plugin --profile web add github:MaRi23333/dsh-grok-kit#1e0892f4086446b7e549c118ab0bd42722ffd773
 ```
+
+The full SHA is the pre-public audited anchor. Remove it only if you intentionally want a rolling install that follows later changes on `main`; rolling installs are not the stable recommendation.
 
 A local checkout can be installed by path instead:
 
@@ -27,7 +29,7 @@ dsh plugin --profile web add ./dsh-grok-kit
 From a DeepSeek Harness source checkout, prefix with `pnpm`:
 
 ```sh
-pnpm dsh plugin --profile web add github:MaRi23333/dsh-grok-kit
+pnpm dsh plugin --profile web add github:MaRi23333/dsh-grok-kit#1e0892f4086446b7e549c118ab0bd42722ffd773
 ```
 
 This repository ships `lib/`, so a git install does not run build scripts. If you installed an older commit and pnpm still asks for `allowBuilds` / `onlyBuiltDependencies`, put the printed package key in that profile's `pnpm-workspace.yaml` and re-run `add`:
