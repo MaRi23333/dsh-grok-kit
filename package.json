@@ -56,7 +56,8 @@
     "INSTALL.md",
     "INSTALL.zh.md",
     "README.md",
-    "README.zh.md",
+    "README.en.md",
+    "assets/readme",
     "LICENSE",
     "NOTICE"
   ],

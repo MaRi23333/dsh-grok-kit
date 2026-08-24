@@ -1,155 +1,137 @@
 # dsh-grok-kit
 
-English | [中文](README.zh.md)
+**中文** · [English](README.en.md)
 
-Use a SuperGrok or X Premium subscription in [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) through xAI's device-code sign-in — no `XAI_API_KEY` required, and no dsh source patch required.
+<p align="center">
+  <img src="assets/readme/hero.svg" width="100%" alt="dsh-grok-kit：DeepSeek Harness 的 Grok OAuth 与融合搜索插件">
+</p>
 
-> **Unofficial project and trademark notice**
+<p align="center">
+  <a href="https://github.com/MaRi23333/dsh-grok-kit/actions/workflows/ci.yml"><img src="https://github.com/MaRi23333/dsh-grok-kit/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-4d6bfe.svg" alt="Apache-2.0"></a>
+  <img src="https://img.shields.io/badge/DeepSeek%20Harness-0.1.1--rc.2%2B-4d6bfe" alt="DeepSeek Harness 0.1.1-rc.2+">
+  <img src="https://img.shields.io/badge/status-unofficial%20community%20plugin-7c84a8" alt="Unofficial community plugin">
+</p>
+
+> Use an eligible SuperGrok or X Premium subscription in DeepSeek Harness through OAuth, with Grok chat, server-side web/X search in the main model turn, Imagine image generation, and an xAI-only proxy.
+
+> [!IMPORTANT]
+> **非官方项目、商标与账户使用声明**
 >
-> `dsh-grok-kit` is an independently developed, third-party community plugin for DeepSeek Harness. It is not an official product of, or representative of, xAI, X, DeepSeek, DeepSeek Harness, or their maintainers, and it does not claim product-specific permission, sponsorship, endorsement, or approval from them. Grok, xAI, X, DeepSeek, DeepSeek Harness, and related names and marks are the property of their respective owners and are used only to identify compatible services accurately.
+> `dsh-grok-kit` 是由社区独立开发的 DeepSeek Harness 第三方插件，不是 xAI、X、DeepSeek、DeepSeek Harness 或这些项目维护者的官方产品，也不代表它们。本项目不主张已获得上述主体对本插件或其名称的个别许可、背书、赞助或认可。Grok、xAI、X、DeepSeek、DeepSeek Harness 及相关名称与标识归各自权利人所有；本项目仅为准确说明兼容对象而提及这些名称。
 >
-> This plugin's OAuth compatibility may depend on the user's subscription tier, region, xAI terms, account entitlement, rate limits, and future service changes. Users are responsible for ensuring that their account and use are permitted. This project does not guarantee continued access or compatibility and does not provide xAI/Grok accounts, subscriptions, or official support.
+> OAuth 可用性可能受订阅档位、地区、xAI 条款、账户资格、速率限制和后续服务变更影响。用户应自行确认其账户与用途获准；本项目不保证持续可用性或兼容性，也不提供 xAI/Grok 账号、订阅或官方支持。
 
-This is an independent dsh bundle. It adds:
+## 它做什么
 
-- SuperGrok / X Premium OAuth sign-in with automatic token refresh (device-code flow) from the dsh Settings panel
-- an `xai-oauth` chat route — streaming, tool calls, reasoning (default high, with `reasoning.encrypted_content`), and compaction through the normal LLM service
-- server-side `{type:web_search}` / `{type:x_search}` on the main grok-4.6 request (`backendSearch`, on in this bundle)
-- `grok_imagine` — Imagine image generation via `POST /v1/images/generations`
-- an independent proxy setting (Settings page, `DSH_XAI_PROXY` env or config) applied to x.ai traffic only
-- dsh's native `web_search` stays in the host tool list; on backend-search turns it is stripped from the xAI payload so the names do not collide
+`dsh-grok-kit` 为 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 增加独立的 `xai-oauth` 路由，并复用 Grok CLI 的本地登录文件。它不要求 `XAI_API_KEY`，也不修改 dsh 源码；内置的 `xai` API Key 路由仍可并存。
 
-The catalog `xai` API-key route stays untouched. This plugin registers `xai-oauth` so both can coexist.
+- 在设置页完成 device-code 登录、退出与账号可见模型选择
+- 通过 `xai-oauth` 使用 Grok 聊天、流式输出、工具调用和 reasoning
+- 把 xAI 服务端网页与 X 搜索放进主模型请求，而不是另开一轮搜索模型
+- 提供 `grok_imagine` 图片生成工具
+- 提供只作用于 `x.ai` 请求的独立 HTTP/HTTPS 代理
+- 对 OAuth 文件、刷新并发、设置接口和诊断输出做防泄露处理
 
-## Highlights
+## 主循环融合搜索
 
-**Full Grok search power, fused into the main loop — the flagship feature.** `{type:web_search}` / `{type:x_search}` ride the *same* Responses turn as the reply: the search **is** the thinking. No nested search hop, no second model call, no URL-list-only discovery — the main grok-4.6 request carries xAI's server-side `web_search` and `x_search` tools. **The complete X search toolset is server-side too**: when it wants X detail, xAI emits one of `x_keyword_search` (keyword), `x_semantic_search` (semantic), `x_user_search` (user) or `x_thread_fetch` (thread/conversation) as a `custom_tool_call` — whichever mode fits — and the search already ran inside that turn. The bundle registers execute-only tools under those exact names so the DSH loop can finish the round; none of them is a second search pipeline.
+本插件的默认 bundle 会把 xAI 服务端 `{type:web_search}` 与 `{type:x_search}` 混入同一轮 Grok Responses 请求。网页检索通常直接体现在 **Think** 里：检索、推理和回答属于同一轮，不需要由 DeepSeek Harness 再调用一条嵌套搜索流水线。
 
-**Subscription, not API key.** Sign in with your SuperGrok / X Premium account through a device-code flow in Settings. No `XAI_API_KEY`, no dsh source patch. The plugin shares `~/.grok/auth.json` with the Grok CLI, so dsh and the CLI rotate the same grant in place — no separate login, no token copying.
+当 xAI 返回 `x_keyword_search`、`x_semantic_search`、`x_user_search` 或 `x_thread_fetch` 这类 `custom_tool_call` 时，搜索已经在 xAI 服务端执行。插件注册同名的收尾工具，让 DSH 主循环能够完成该轮；这些收尾工具本身不会再次发起搜索。
 
-**Grok-4.6 to the fullest.** Hand-written model descriptor: 500k context, `xhigh` reasoning, default `high` effort, `reasoning.encrypted_content` included so multi-turn reasoning continuity works (the encrypted thinking replays on the next turn). Mainline ids (`grok-4.7`, `grok-5`, …) are mapped to the newest descriptor shipped in this bundle — if a newer Grok needs capabilities the descriptor does not declare, update the plugin as usual.
+需要域名、账号或日期过滤时，可关闭 `backendSearch`，或显式启用 `nestedSearchTools`，使用独立的 `grok_web_search` / `x_search` 回退模式。
 
-**A model picker that only shows mainline Grok.** grok-4.5, grok-4.6 and future grok-4.x / grok-5 only. `grok-build-0.1`, `grok-code-fast`, Imagine / video / embedding ids are hidden from both the composer and the Settings page.
+## 界面与效果
 
-**Credentials engineered, not parked.** Atomic writes with owner-only read checks; refresh network outside the file lock with compare-and-write inside; in-process coalescer so a concurrent 401 cannot double-refresh the rotating grant; 403 kept strictly separate from 401 (entitlement gate ≠ expired token); secrets redacted from every diagnostic; CSRF-hardened local settings routes (loopback + Host pin + Origin + sec-fetch-site + JSON content-type).
+<p align="center">
+  <img src="assets/readme/settings.png" width="820" alt="dsh-grok-kit 设置页：Grok CLI 登录、模型选择与 xAI 专用代理">
+</p>
+<p align="center"><sub>设置页：复用 Grok CLI 登录，选择账号可见模型，并按需设置仅对 xAI 生效的网络代理。图中的 <code>127.0.0.1</code> 是本机回环代理示例。</sub></p>
 
-**Also in the box.** `grok_imagine` (pixels enter the session as image blocks and are visible to the next turn); an xAI-only proxy setting that leaves every other host untouched (while the plugin is loaded — the fetch hook is restored on dispose); coexistence with the `xai` API-key route; bilingual docs (EN/中文); Apache-2.0 with a NOTICE that credits its dsh-xai lineage; a CI workflow; 109+ tests.
+<p align="center">
+  <img src="assets/readme/main-loop-search.png" width="960" alt="Grok 在同一轮 Think 中完成网页搜索并回答">
+</p>
+<p align="center"><sub>主循环融合搜索：网页检索直接发生在同一轮 Think 中，不显示为宿主侧的常规工具调用。截图里的新闻内容只用于展示交互，不作为事实来源。</sub></p>
 
-| | dsh-grok-kit | Typical Grok-listener plugins |
-| --- | --- | --- |
-| Auth | SuperGrok / X Premium **OAuth**, device-code, no API key | API key, third-party relay, or a patched source tree |
-| Search | **In the main request**: thinking *is* the search; the **full X toolset** (keyword / semantic / user / thread) runs server-side via `custom_tool_call` | Nested LLM hop (`grok-build-0.1` style), a single X mode, or no real search at all |
-| Model | grok-4.6: 500k context, `xhigh`, encrypted-reasoning continuity, future-proof descriptor | Static past-generation ids |
-| Picker | Mainline Grok only | Imagine / video / build variants mixed in |
-| Proxy | xAI-only, per-plugin; hook restored on dispose | Global env takeover or none |
-| Output | `grok_imagine` — image blocks into the conversation | — |
-| Engineering | No dsh/pi-ai fork; tests + CI; Apache-2.0 + NOTICE | Often a source patch with no test suite |
+<p align="center">
+  <img src="assets/readme/x-search.png" width="960" alt="xAI 返回 X 搜索 custom_tool_call 后继续完成回答">
+</p>
+<p align="center"><sub>X 搜索：响应可能显示 <code>x_keyword_search</code> 等 <code>custom_tool_call</code>；搜索已在 xAI 服务端执行，插件只负责让该轮在 DSH 中收尾。截图内容仅作功能演示。</sub></p>
 
-## Install
+## 安装
 
-Install from GitHub:
+从 GitHub 安装到 Web profile：
 
 ```sh
 dsh plugin --profile web add github:MaRi23333/dsh-grok-kit
 dsh web
 ```
 
-If you started the UI with `npx` and have no `dsh` on PATH, use the same package as the CLI:
+如果 PATH 中没有 `dsh`，可以使用同一个 CLI 包：
 
 ```sh
 npx @deepseek-ai/dsh plugin --profile web add github:MaRi23333/dsh-grok-kit
 npx @deepseek-ai/dsh web
 ```
 
-Do not run `npm dsh` or `pnpm dsh` from your home directory. `npx` does not install a global `dsh` command.
+打开 **设置 → xAI Grok**，完成登录后选择 `xai-oauth / grok-4.6` 或账号当前可见的其他主线 Grok 模型。已经保存在 dsh 设置中的模型仍有更高优先级。
 
-Open **Settings → xAI Grok → Sign in with SuperGrok**. The plugin starts xAI's device-code flow, opens the verification URL, and polls until you approve.
+完整的安装、迁移、卸载和故障处理步骤见 [INSTALL.zh.md](INSTALL.zh.md)。
 
-The bundle selects `xai-oauth` / `grok-4.6` for new agents. A model already saved in dsh settings still takes precedence. Only mainline Grok chat models (grok-4.5, grok-4.6, future grok-4.x / grok-5) appear in the composer picker — variants (`grok-build-0.1`, `grok-code-fast`, Imagine / video / embedding) are hidden.
+## 模型与工具
 
-The Settings page can choose which account models appear in the composer picker (`xai-oauth / <id>`). After updating the plugin, restart `dsh web` if the picker is still empty.
+- 模型选择器只展示主线 Grok 聊天模型；Imagine、video、embedding、build/code 变体会被隐藏
+- 默认模型描述符为 grok-4.6，包含 reasoning 与多轮加密推理连续性所需的字段
+- `grok_imagine` 默认开启；宿主支持附件服务时，结果以图片块进入会话
+- dsh 原生 `web_search` 仍保留在宿主工具列表中，但会从启用 backend search 的 xAI payload 中移除，避免工具重名
 
-See [INSTALL.md](INSTALL.md) / [INSTALL.zh.md](INSTALL.zh.md) for the full runbook.
+模型列表来自登录账号的 `GET /v1/models` 结果，并在本地缓存。服务端能力或模型要求发生变化时，仍可能需要更新插件；不会把“模型 id 可见”等同于“所有能力一定可用”。
 
-## Search
+## 配置
 
-The main request fuses xAI server-side search into the reply itself: web search runs inside the same Responses turn and shows up as **thinking** — no tool call, no separate search hop. Search calls and their results stay inside that one turn.
-
-When the model wants more X-specific detail, xAI emits a `custom_tool_call` (`x_keyword_search` / `x_semantic_search` / …) into the stream — **that name appearing means an X search already ran on xAI's side inside this turn** (searching X is the model's way to fetch more, not a second search pipeline). The bundle registers execute-only tools under those exact names so the DSH loop can finish the round; their body only says the search already ran. Do not mistake them for nested search.
-
-DSH's native function `web_search` stays in the host list but is stripped from the xAI payload so it does not collide with the server-side `{type:"web_search"}` (`Duplicate tool names: web_search`).
-
-`grok_web_search` / nested `x_search` are **not** registered in this default. They were a nested LLM hop (`grok-build-0.1`) from before the main request could mix server-side tools. Keep the code behind `nestedSearchTools: true` only if you need `allowed_domains` / handle / date filters, or as a fallback after `backendSearch: false`. A SuperGrok 403 on the chat route is fatal for that turn — set `backendSearch: false` (nested tools then come back unless you also set `nestedSearchTools: false`).
-
-`grok_imagine` generates one image per call (approximate 1K low ~$0.04/image). Output is an image block when the host attachment service is present; otherwise it writes under `<session cwd>/.dsh-grok-kit/` (not gitignored automatically).
-
-## Configuration
-
-Plugin config keys (Cordis profile config; the Settings page exposes account, model and proxy):
-
-| Key | Default | Meaning |
+| 配置项 | 默认值 | 说明 |
 | --- | --- | --- |
-| `backendSearch` | `false` (bundle composition sets `true`) | Mix xAI server-side `{type:web_search}` / `{type:x_search}` into the main chat request |
-| `nestedSearchTools` | no default; `!backendSearch` at apply() | Register nested `grok_web_search` / `x_search` (filtered search or fallback) |
-| `searchModel` | `grok-build-0.1` | Model used by nested search calls |
-| `searchMaxResults` | `8` | Upper bound on nested search sources |
-| `webSearchTimeoutMs` | `60000` | Cooperative budget for nested web search |
-| `xSearchTimeoutMs` | `120000` | Cooperative budget for nested x search |
-| `imagineTool` | `true` | Register `grok_imagine` |
-| `proxyUrl` | `''` | Outbound HTTP/HTTPS proxy for x.ai traffic; stored setting wins over this |
+| `backendSearch` | schema 为 `false`；本 bundle 设为 `true` | 在主聊天请求中启用 xAI 服务端网页/X 搜索 |
+| `nestedSearchTools` | 省略时取 `!backendSearch` | 注册独立的 `grok_web_search` / `x_search` |
+| `searchModel` | `grok-build-0.1` | 嵌套搜索模式使用的模型 |
+| `searchMaxResults` | `8` | 嵌套搜索返回来源的上限 |
+| `webSearchTimeoutMs` | `60000` | 嵌套网页搜索的协作式超时预算 |
+| `xSearchTimeoutMs` | `120000` | 嵌套 X 搜索的协作式超时预算 |
+| `imagineTool` | `true` | 注册 `grok_imagine` |
+| `proxyUrl` | `''` | xAI 专用 HTTP/HTTPS 代理；设置页保存值优先 |
 
-`backendSearch: false` keeps nested tools registered (unless `nestedSearchTools: false`); `backendSearch: true` with the key omitted registers neither — turn them on explicitly only if you need both.
+本 bundle 的组合默认值来自 `cordis.patch.yml`。手工拆分或重组配置时，可用 `dsh --profile web --dump-config` 核对最终值。
 
-## Proxy
+## 登录文件、代理与安全边界
 
-xAI traffic can be routed through an HTTP/HTTPS proxy without affecting any other request:
+- 优先使用 `~/.grok/auth.json`，与 Grok CLI 共用同一份 xAI 凭据；在设置页退出也会让 Grok CLI 退出
+- OAuth 刷新令牌会轮换；插件用原子写入、进程内合并和 compare-and-write 避免并发刷新互相覆盖
+- 浏览器状态接口、错误信息和诊断不会返回 token 值
+- 代理只接受不含用户名/密码的 `http://` 或 `https://` URL；带 userinfo 的旧值会被清理，不会进入状态响应或日志
+- xAI 专用 fetch hook 会在插件卸载时恢复；它不会永久修改系统或进程环境变量
+- Windows 上的 Node mode bit 不等于 NTFS ACL；如果用户目录或 `$DSH_HOME` 位于共享位置，请自行收紧目录权限
 
-- Settings → xAI Grok → Network proxy (xAI only): enter the proxy URL and save it
-- or set `DSH_XAI_PROXY` (e.g. `http://127.0.0.1:8080`) via the dsh environment / config
+## 兼容性与限制
 
-The proxy applies to `x.ai` traffic only; every other request stays direct. While the plugin is loaded the transparent fetch hook covers **all** `x.ai` requests in the process — including the coexisting catalog `xai` API-key route — and the hook is restored when the plugin/bundle is disposed.
+- 某些订阅档位可能允许浏览器登录，却对聊天或服务端搜索返回 HTTP 403；这是账户资格/服务策略问题，不等同于 token 过期
+- HTTP 401 会在串行刷新后重试一次；403 不会按 token 过期处理
+- 不支持与旧版 `dsh-xai` bundle 同时安装；请先运行 `dsh plugin --profile web remove dsh-xai`
+- backend search 是本 bundle 的默认组合，但可用性仍由账号、模型和 xAI 当前服务决定
+- 删除插件不会自动删除 `~/.grok/auth.json`；需要清理本地登录时，请先在设置页退出
 
-## Credentials
-
-- the live store is `~/.grok/auth.json` when that file exists (same document Grok CLI uses)
-- otherwise a leftover `$DSH_HOME/.xai-oauth-auth.json` is still read; new logins write the Grok file
-- writes are atomic; the writer lock lives under `$DSH_HOME` (never as `~/.grok/auth.json.lock`) so a leftover lock cannot stall Grok CLI or take dsh down at boot
-- browser status and diagnostics never return token values
-
-xAI refresh tokens rotate. Sharing `~/.grok/auth.json` means dsh and Grok CLI rotate the same grant. Sign-out from Settings also signs Grok CLI out. Removing the bundle does not delete the file.
-
-## Compatibility notes
-
-- Chat, tool calls, and reasoning ride pi-ai's xAI provider (`openai-completions` / `openai-responses`).
-- Some SuperGrok tiers have been seen to accept the browser login and then reject inference with HTTP 403. That is an xAI entitlement gate, not a stale token. Use `XAI_API_KEY` on the catalog `xai` route in that case.
-- Filesystem, shell, skills, MCP, subagents, permissions, attachments, and compaction still come from the active dsh profile.
-
-## Known limitations
-
-- **Chat HTTP 401** retries once with the same serialized refresh the search tools use (403 is not retried — that is an entitlement gate). A failed refresh still needs Settings → xAI Grok → sign in again.
-- **Search 403:** some SuperGrok tiers accept the login but reject server-side search tools. Nested search: try `searchModel` (e.g. `grok-4.5`). Main-request mix: set `backendSearch: false`.
-- **Backend search** is on in this bundle's composition. The theoretical `encrypted_content`-pairing 400 after a searched turn (xAI pairing omitted `*_search_call` items with the next turn's encrypted reasoning) was **not reproduced in practice as of 2026-08-24** — verified by the maintainer's own multi-turn use and a cross-turn grok-4.6 probe (search turn, then a follow-up listing sources: both HTTP 200). The fallback stays documented: set `backendSearch: false` if you ever hit it.
-- **X search UI stubs:** pi-ai surfaces xAI `custom_tool_call` (`x_keyword_search` / `x_semantic_search` / …) as client tools. This bundle registers execute-only stubs titled “X search” so the turn can finish; the search already ran server-side. Extra round is cheap. Do not treat the stub names as nested search.
-- **Windows ACLs:** Node's file mode bits are not Windows ACLs. On Windows the live credential file is `~/.grok/auth.json` — its protection is the user-profile directory being private (the default for `%USERPROFILE%`). The same applies to `$DSH_HOME` (write locks, legacy credential/proxy files); if either directory lives in a shared location, restrict its ACL yourself.
-- **Schema vs bundle defaults:** the Config schema default is `backendSearch: false` with nested tools on; this bundle's `cordis.patch.yml` flips it to the documented defaults. A manually composed/reduced config without the patch gets nested-search behavior instead — check `dsh --profile web --dump-config` after install.
-- **One xAI bundle only:** installing dsh-grok-kit alongside the old dsh-xai bundle is NOT supported. This bundle tries to degrade gracefully (unique plugin id, route + settings-page guards), but the old bundle can still fail the profile boot when it loads second. Remove dsh-xai first: `dsh plugin --profile web remove dsh-xai`.
-
-## Development
+## 开发
 
 ```sh
 npm install
-node scripts/link-host-deps.mjs   # re-point @deepseek-ai/* at the host after every install
+node scripts/link-host-deps.mjs
 npm run check
-dsh plugin --profile web add ./dsh-grok-kit   # local dev install
+dsh plugin --profile web add ./dsh-grok-kit
 ```
 
-`npm install` creates a plugin-local `node_modules` whose `@deepseek-ai` /
-`@earendil-works` packages would shadow the host's dsh-* versions at runtime
-(that produced `registration.adapter.prepareCall is not a function`). The
-link script turns those into junctions to the host's flat module fallback
-(`$DSH_HOME/profiles/node_modules`), keeping the plugin on the host's exact
-versions — run it after every `npm install` / `npm ci`.
+安装依赖后必须运行 `scripts/link-host-deps.mjs`，让插件开发环境继续使用宿主 DeepSeek Harness 的 `@deepseek-ai/*` 与 `@earendil-works/*` 版本。
 
-## License
+CI 在 Node.js 22 与 24 上执行 frozen install、typecheck、测试、构建，并确认提交的 `lib/` 与源码构建结果一致。
 
-Apache-2.0. Some code derives from dsh-xai (Apache-2.0).
+## 许可证与致谢
+
+[Apache-2.0](LICENSE)。部分代码源自 Apache-2.0 许可的 `dsh-xai`，详见 [NOTICE](NOTICE)。
