@@ -15,6 +15,30 @@ This is an independent dsh bundle. It adds:
 
 The catalog `xai` API-key route stays untouched. This plugin registers `xai-oauth` so both can coexist.
 
+## Highlights
+
+**Full Grok search power, fused into the main loop — the flagship feature.** `{type:web_search}` / `{type:x_search}` ride the *same* Responses turn as the reply: the search **is** the thinking. No nested search hop, no second model call, no URL-list-only discovery — grok-4.6 searches with its full ability, exactly like Grok Build does, over the public API. When it wants more from X, xAI's `custom_tool_call` (`x_keyword_search` / `x_semantic_search` / …) appears in the stream — the X search already ran server-side inside that turn (`x_keyword_search` showing up is the model fetching *more* X detail, not a second search pipeline).
+
+**Subscription, not API key.** Sign in with your SuperGrok / X Premium account through a device-code flow in Settings. No `XAI_API_KEY`, no dsh source patch. The plugin shares `~/.grok/auth.json` with the Grok CLI, so dsh and the CLI rotate the same grant in place — no separate login, no token copying.
+
+**Grok-4.6 to the fullest.** Hand-written model descriptor: 500k context, `xhigh` reasoning, default `high` effort, `reasoning.encrypted_content` included so multi-turn reasoning continuity works (the encrypted thinking replays on the next turn). Future mainline ids (`grok-4.7`, `grok-5`, …) inherit the newest descriptor automatically — no plugin update needed when xAI ships the next Grok.
+
+**A model picker that only shows mainline Grok.** grok-4.5, grok-4.6 and future grok-4.x / grok-5 only. `grok-build-0.1`, `grok-code-fast`, Imagine / video / embedding ids are hidden from both the composer and the Settings page.
+
+**Credentials engineered, not parked.** Atomic writes with owner-only read checks; refresh network outside the file lock with compare-and-write inside; in-process coalescer so a concurrent 401 cannot double-refresh the rotating grant; 403 kept strictly separate from 401 (entitlement gate ≠ expired token); secrets redacted from every diagnostic; CSRF-hardened local settings routes (loopback + Host pin + Origin + sec-fetch-site + JSON content-type).
+
+**Also in the box.** `grok_imagine` (pixels enter the session as image blocks and are visible to the next turn); an xAI-only proxy setting that leaves every other request untouched; coexistence with the `xai` API-key route; bilingual docs (EN/中文); Apache-2.0 with a NOTICE that credits its dsh-xai lineage; a CI workflow; 109+ tests.
+
+| | dsh-grok-kit | Typical Grok-listener plugins |
+| --- | --- | --- |
+| Auth | SuperGrok / X Premium **OAuth**, device-code, no API key | API key, third-party relay, or a patched source tree |
+| Search | **In the main request**: thinking *is* the search; server-side X search via `custom_tool_call` | Nested LLM hop (`grok-build-0.1` style) or no real search at all |
+| Model | grok-4.6: 500k context, `xhigh`, encrypted-reasoning continuity, future-proof descriptor | Static past-generation ids |
+| Picker | Mainline Grok only | Imagine / video / build variants mixed in |
+| Proxy | xAI-only, per-plugin, zero global impact | Global env takeover or none |
+| Output | `grok_imagine` — image blocks into the conversation | — |
+| Engineering | No dsh/pi-ai fork; tests + CI; Apache-2.0 + NOTICE | Often a source patch with no test suite |
+
 ## Install
 
 Install from a GitHub repository (replace `<your-name>` with the repository owner):

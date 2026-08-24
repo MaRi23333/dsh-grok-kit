@@ -15,6 +15,30 @@
 
 内置目录里的 `xai`（API Key）路由不会被动。本插件注册的是 `xai-oauth`，两条路可以并存。
 
+## 核心卖点
+
+**Grok 完整搜索实力，融合进主循环——招牌特性。** `{type:web_search}` / `{type:x_search}` 和回复乘在**同一个** Responses turn 里：**搜索本身就是 thinking**。没有嵌套搜索跳数、没有第二次模型调用、也不是只返回 URL 列表的廉价发现——grok-4.6 拿出全部搜索能力，和 Grok Build 一模一样，走公开 API。当它想从 X 拿到更多细节时，流里会出现 xAI 的 `custom_tool_call`（`x_keyword_search` / `x_semantic_search` 等）——**X 搜索已经在那一轮的服务端做完**（`x_keyword_search` 露头 = 模型在补搜更多 X 细节，不是第二条搜索流水线）。
+
+**订阅直连，不备 Key。** 在设置页用 SuperGrok / X Premium 账号走 device-code 登录。不需要 `XAI_API_KEY`，不改 dsh 源码。插件与 Grok CLI 共用 `~/.grok/auth.json`——dsh 和 CLI 原地轮换同一把 grant，不用单独登录、不用拷贝 token。
+
+**grok-4.6 用满。** 手写模型描述符：500k 上下文、`xhigh` 推理、默认 `high` effort、带 `reasoning.encrypted_content` 让多轮推理连续（加密思考在下一轮回放）。未来主模型 id（`grok-4.7`、`grok-5`…）自动继承最新描述符——xAI 出下一个 Grok 时**不用等插件更新**。
+
+**只有主线 Grok 的模型选择器。** 仅 grok-4.5、grok-4.6 与未来 grok-4.x / grok-5。`grok-build-0.1`、`grok-code-fast`、Imagine / video / embedding 在 composer 和设置页全部隐藏。
+
+**凭证是工程，不是摆设。** 原子写入 + 属主只读校验；刷新在网络层（锁外）、文件锁内只做 compare-and-write；进程内 coalescer 让并发 401 不会双烧轮换 grant；403 严格与 401 分开（档位门 ≠ token 过期）；所有报错脱敏；设置路由 CSRF 纵深防御（loopback + Host pin + Origin + sec-fetch-site + JSON content-type）。
+
+**其它亮点。** `grok_imagine`（像素以 image block 进会话、下一轮模型看得见）；只对 x.ai 生效的独立代理设置，其余请求零影响；与 `xai` API-Key 路由并存；双语文档（EN/中文）；Apache-2.0 + NOTICE（标注 dsh-xai 血统）；CI workflow；109+ 测试。
+
+| | dsh-grok-kit | 市面上常见的 Grok 插件 |
+| --- | --- | --- |
+| 认证 | SuperGrok / X Premium **OAuth**，device-code，不要 Key | API Key、第三方中转、或改源码 |
+| 搜索 | **在主请求里**：thinking 即搜索；服务端 X 搜索走 `custom_tool_call` | 再开一轮 LLM（`grok-build-0.1` 式）或根本没有真搜索 |
+| 模型 | grok-4.6：500k 上下文、`xhigh`、加密推理连续、未来模型免更新 | 旧世代静态 id |
+| 选择器 | 只有主线 Grok | Imagine / video / build 变体混在一起 |
+| 代理 | 仅 x.ai、插件级、零全局影响 | 全局环境变量接管或没有 |
+| 出图 | `grok_imagine`——图片以块进对话 | —— |
+| 工程 | 不 fork dsh/pi-ai；测试 + CI；Apache-2.0 + NOTICE | 常是打补丁且没有测试 |
+
 ## 安装
 
 从 GitHub 安装（把 `<your-name>` 换成仓库所有者）：
