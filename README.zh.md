@@ -43,7 +43,11 @@ npx @deepseek-ai/dsh web
 
 ## 搜索
 
-默认：grok-4.6 在同一轮 Responses 里走 xAI 服务端搜索（界面上多半是 thinking）。DSH 原生函数 `web_search` 会从该 payload 剥掉，避免 `Duplicate tool names: web_search`。
+主请求把 xAI 服务端搜索融入回复本身：网页检索在**同一个 Responses turn** 里完成，**以 thinking 呈现——不调用任何工具，也不是单独再跑一次搜索**。这是本插件在公开 API 上最接近 Grok Build 体验的做法。
+
+当模型想要更多 X 上的细节时，xAI 会在流里吐一个 `custom_tool_call`（`x_keyword_search` / `x_semantic_search` 等）——**这个工具名露头就说明 xAI 侧在同一轮里已经把 X 搜索做完了**（模型去搜 X 是补充信息的手段，不是第二条搜索流水线）。插件按这些精确名字注册了只执行的工具（工具体只会说"搜索已在服务端跑过"），让 DSH 主循环能正常收尾这一轮。不要把它们当成嵌套搜索。
+
+DSH 原生函数 `web_search` 仍在宿主工具列表里，但会从 xAI payload 剥掉，避免与服务端 `{type:"web_search"}` 重名（`Duplicate tool names: web_search`）。
 
 `grok_web_search` / 嵌套 `x_search` **默认不注册**。它们是主请求还不能混服务端工具时的套娃路径（`grok-build-0.1`）。只有需要 `allowed_domains` / 账号/日期过滤，或关掉 `backendSearch` 当回退时，才设 `nestedSearchTools: true`。主请求 403 会让整轮聊天失败——设 `backendSearch: false`（嵌套工具会回来，除非再显式 `nestedSearchTools: false`）。
 

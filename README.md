@@ -43,7 +43,11 @@ See [INSTALL.md](INSTALL.md) / [INSTALL.zh.md](INSTALL.zh.md) for the full runbo
 
 ## Search
 
-Default: grok-4.6 searches on xAI's servers inside the same Responses turn (shown as thinking). The DSH native function `web_search` is stripped from that payload so it does not collide with `{type:"web_search"}` (`Duplicate tool names: web_search`).
+The main request fuses xAI server-side search into the reply itself: web search runs inside the same Responses turn and shows up as **thinking** — no tool call, no separate search hop. That is the closest this bundle gets to the Grok Build experience on the public API.
+
+When the model wants more X-specific detail, xAI emits a `custom_tool_call` (`x_keyword_search` / `x_semantic_search` / …) into the stream — **that name appearing means an X search already ran on xAI's side inside this turn** (searching X is the model's way to fetch more, not a second search pipeline). The bundle registers execute-only tools under those exact names so the DSH loop can finish the round; their body only says the search already ran. Do not mistake them for nested search.
+
+DSH's native function `web_search` stays in the host list but is stripped from the xAI payload so it does not collide with the server-side `{type:"web_search"}` (`Duplicate tool names: web_search`).
 
 `grok_web_search` / nested `x_search` are **not** registered in this default. They were a nested LLM hop (`grok-build-0.1`) from before the main request could mix server-side tools. Keep the code behind `nestedSearchTools: true` only if you need `allowed_domains` / handle / date filters, or as a fallback after `backendSearch: false`. A SuperGrok 403 on the chat route is fatal for that turn — set `backendSearch: false` (nested tools then come back unless you also set `nestedSearchTools: false`).
 
