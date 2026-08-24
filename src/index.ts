@@ -20,7 +20,7 @@ import type {} from '@deepseek-ai/dsh-llm'
 import { createXaiOAuthAdapter } from './adapter.ts'
 import { registerXaiOAuthAuthRoutes } from './auth-routes.ts'
 import { XAI_OAUTH_ROUTE } from './ids.ts'
-import { applyXaiProxy, disposeXaiFetchHook } from './proxy.ts'
+import { applyXaiProxy, installXaiFetchHook } from './proxy.ts'
 import {
   createXaiOAuthSearchTokenSource,
   DEFAULT_XAI_SEARCH_MODEL,
@@ -199,8 +199,9 @@ export function apply(ctx: Context, config: Config): void {
   // goes through globalThis.fetch and is routed by the hook. Registered as an
   // effect so the hook is restored and the ProxyAgent closed on dispose.
   ctx.effect(() => {
+    const dispose = installXaiFetchHook()
     applyXaiProxy(config.proxyUrl)
-    return () => disposeXaiFetchHook()
+    return dispose
   }, 'dsh-grok-kit: xAI proxy hook')
 
   const session = new XaiOAuthSession(new XaiOAuthCredentialStore(), () => {

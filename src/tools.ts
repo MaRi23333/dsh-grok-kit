@@ -1,3 +1,8 @@
+//
+// Adapted from the dsh-xai web-search fork by lonefisher
+// (https://github.com/lonefisher/dsh-xai), Apache-2.0.
+// Modified for dsh-grok-kit — see NOTICE for the full attribution.
+//
 /**
  * Nested `grok_web_search` / `x_search` (opt-in via nestedSearchTools) and
  * execute-only reject stubs for xAI custom_tool_call when backendSearch is on.

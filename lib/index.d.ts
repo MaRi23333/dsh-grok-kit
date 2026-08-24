@@ -301,9 +301,15 @@ declare function safeMessage(error: unknown): string;
 //#region src/proxy.d.ts
 /** Absolute path of the plugin-owned proxy setting file. */
 declare function xaiProxyPath(dshHome?: string): string;
-/** Read the plugin's own stored proxy URL ('' = off; invalid/userinfo values are dropped). */
+/**
+ * Read the plugin's own stored proxy URL ('' = off; invalid/userinfo values
+ * are dropped AND the disk copy is scrubbed so credentials do not linger).
+ */
 declare function readStoredProxyUrl(): string;
-/** Persist the plugin's own proxy setting. */
+/**
+ * Persist the plugin's own proxy setting. Fail-closed: URLs with embedded
+ * credentials or invalid proxies are rejected BEFORE anything hits disk.
+ */
 declare function writeStoredProxyUrl(url: string): Promise<void>;
 /**
  * Point the xAI-only hook at a proxy URL; '' clears it (xAI goes direct too).
@@ -314,14 +320,19 @@ declare function setXaiProxyUrl(url: string): boolean;
 /**
  * Install a transparent global-fetch hook that routes ONLY x.ai origins
  * through this plugin's ProxyAgent; every other request goes to the
- * original fetch untouched. Idempotent; without a configured URL it is a
- * pure pass-through. Returns a disposer that restores the original fetch
- * and closes the ProxyAgent (used by the plugin's ctx.effect cleanup).
+ * original fetch untouched. Reference counted: every install returns its
+ * OWN idempotent disposer, and the original fetch is restored only after
+ * the LAST owner releases — and only if our wrapper is still installed
+ * (a later component that replaced fetch after us is never clobbered).
  */
 declare function installXaiFetchHook(): () => void;
 /** Effective proxy URL: stored setting > config `proxyUrl` > `DSH_XAI_PROXY`. Invalid/userinfo values resolve to ''. */
 declare function resolveXaiProxyUrl(configUrl?: string): string;
-/** Install the hook and apply the current URL. Returns the effective URL, '' when unset/invalid. */
+/**
+ * Apply the effective proxy URL (stored > config > env) to the already
+ * installed hook. Callers own the hook lifecycle via installXaiFetchHook().
+ * Returns the effective URL, '' when unset/invalid.
+ */
 declare function applyXaiProxy(configUrl?: string): string;
 //#endregion
 //#region src/search.d.ts

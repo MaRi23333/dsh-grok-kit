@@ -4,7 +4,6 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   applyXaiProxy,
-  disposeXaiFetchHook,
   installXaiFetchHook,
   readStoredProxyUrl,
   resolveXaiProxyUrl,
@@ -21,7 +20,6 @@ let dir: string | undefined
 afterEach(async () => {
   process.env.DSH_HOME = originalHome
   process.env.DSH_XAI_PROXY = originalEnv
-  disposeXaiFetchHook()
   setXaiProxyUrl('')
   if (dir !== undefined) await rm(dir, { recursive: true, force: true })
   dir = undefined
@@ -101,13 +99,20 @@ describe('proxy settings', () => {
     expect(validProxyUrl('http://example.com:8080')).toBe('http://example.com:8080')
     expect(setXaiProxyUrl('http://user:pass@example.com:8080')).toBe(false)
 
-    // A legacy file that already contains credentials is dropped on read.
+    // Direct write of credentials is fail-closed: nothing hits the disk.
+    await expect(writeStoredProxyUrl('http://user:pass@example.com:8080')).rejects.toThrow(/credentials/)
+    expect(await readFile(xaiProxyPath(home), 'utf8').catch(() => '')).not.toContain('user')
+
+    // A legacy file that already contains credentials is scrubbed ON DISK.
     await writeFile(xaiProxyPath(home), `${JSON.stringify({
       version: 1,
       proxyUrl: 'http://user:pass@example.com:8080',
     })}\n`)
     expect(readStoredProxyUrl()).toBe('')
-    expect(resolveXaiProxyUrl('')).toBe('')
+    const disk = await readFile(xaiProxyPath(home), 'utf8')
+    expect(disk).not.toContain('user')
+    expect(disk).not.toContain('pass')
+    expect(JSON.parse(disk)).toMatchObject({ version: 1, proxyUrl: '' })
 
     // env/config with credentials resolve to '' (nothing is routed).
     process.env.DSH_XAI_PROXY = 'http://user:pass@example.com:8080'
@@ -118,14 +123,38 @@ describe('proxy settings', () => {
   it('install/dispose restores the original fetch', async () => {
     await tempHome()
     const original = globalThis.fetch
+    const d1 = installXaiFetchHook()
     applyXaiProxy('http://127.0.0.1:8080')
     expect(globalThis.fetch).not.toBe(original)
-    disposeXaiFetchHook()
+    d1()
     expect(globalThis.fetch).toBe(original)
     // Install again after dispose works (idempotent cycles).
+    const d2 = installXaiFetchHook()
     applyXaiProxy('')
     expect(globalThis.fetch).not.toBe(original)
-    disposeXaiFetchHook()
+    d2()
     expect(globalThis.fetch).toBe(original)
+  })
+
+  it('reference counts owners: one release keeps the hook, the last restores it', async () => {
+    const original = globalThis.fetch
+    const d1 = installXaiFetchHook()
+    const d2 = installXaiFetchHook()
+    d1()
+    expect(globalThis.fetch).not.toBe(original) // nestedStillHooked: true
+    d2()
+    expect(globalThis.fetch).toBe(original)
+    // Released disposers are idempotent.
+    d1()
+    expect(globalThis.fetch).toBe(original)
+  })
+
+  it('never clobbers a fetch installed by a later component', async () => {
+    const later = ((_input: unknown) => Promise.resolve(new Response('later'))) as typeof fetch
+    const d1 = installXaiFetchHook()
+    globalThis.fetch = later
+    d1()
+    expect(globalThis.fetch).toBe(later) // preservesLaterHook: true
+    globalThis.fetch = later
   })
 })

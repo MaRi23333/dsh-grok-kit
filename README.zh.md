@@ -23,7 +23,7 @@
 
 ## 核心卖点
 
-**Grok 完整搜索实力，融合进主循环——招牌特性。** `{type:web_search}` / `{type:x_search}` 和回复乘在**同一个** Responses turn 里：**搜索本身就是 thinking**。没有嵌套搜索跳数、没有第二次模型调用、也不是只返回 URL 列表的廉价发现——grok-4.6 拿出完整的搜索能力，与 xAI 自家应用通过公开 API 呈现的能力同级。**完整的 X 搜索工具集同样在服务端**：当它想从 X 拿信息时，xAI 会按需吐出 `x_keyword_search`（关键词）/ `x_semantic_search`（语义）/ `x_user_search`（用户）/ `x_thread_fetch`（话题/线程）之一的 `custom_tool_call`——哪种模式合适用哪种，**搜索已经在那一轮的服务端做完**。插件按这些精确名字注册只执行的工具，让 DSH 主循环收尾该轮；它们没有一个是第二条搜索流水线。
+**Grok 完整搜索实力，融合进主循环——招牌特性。** `{type:web_search}` / `{type:x_search}` 和回复乘在**同一个** Responses turn 里：**搜索本身就是 thinking**。没有嵌套搜索跳数、没有第二次模型调用、也不是只返回 URL 列表的廉价发现——主 grok-4.6 请求携带 xAI 服务端 `web_search` / `x_search` 工具。**完整的 X 搜索工具集同样在服务端**：当它想从 X 拿信息时，xAI 会按需吐出 `x_keyword_search`（关键词）/ `x_semantic_search`（语义）/ `x_user_search`（用户）/ `x_thread_fetch`（话题/线程）之一的 `custom_tool_call`——哪种模式合适用哪种，**搜索已经在那一轮的服务端做完**。插件按这些精确名字注册只执行的工具，让 DSH 主循环收尾该轮；它们没有一个是第二条搜索流水线。
 
 **订阅直连，不备 Key。** 在设置页用 SuperGrok / X Premium 账号走 device-code 登录。不需要 `XAI_API_KEY`，不改 dsh 源码。插件与 Grok CLI 共用 `~/.grok/auth.json`——dsh 和 CLI 原地轮换同一把 grant，不用单独登录、不用拷贝 token。
 
@@ -73,7 +73,7 @@ npx @deepseek-ai/dsh web
 
 ## 搜索
 
-主请求把 xAI 服务端搜索融入回复本身：网页检索在**同一个 Responses turn** 里完成，**以 thinking 呈现——不调用任何工具，也不是单独再跑一次搜索**。这与 xAI 自家应用的搜索体验同源，由公开 API 实现。
+主请求把 xAI 服务端搜索融入回复本身：网页检索在**同一个 Responses turn** 里完成，**以 thinking 呈现——不调用任何工具，也不是单独再跑一次搜索**。搜索调用与结果都留在那一轮里。
 
 当模型想要更多 X 上的细节时，xAI 会在流里吐一个 `custom_tool_call`（`x_keyword_search` / `x_semantic_search` 等）——**这个工具名露头就说明 xAI 侧在同一轮里已经把 X 搜索做完了**（模型去搜 X 是补充信息的手段，不是第二条搜索流水线）。插件按这些精确名字注册了只执行的工具（工具体只会说"搜索已在服务端跑过"），让 DSH 主循环能正常收尾这一轮。不要把它们当成嵌套搜索。
 

@@ -15,7 +15,7 @@
  * proxy URLs only; undici's ProxyAgent does not speak SOCKS. URLs with
  * embedded credentials are rejected and never persisted.
  */
-import { mkdirSync, readFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { ProxyAgent, fetch as undiciFetch } from 'undici'
 import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
@@ -29,26 +29,53 @@ export function xaiProxyPath(dshHome?: string): string {
   return resolve(join(resolveDshHome(dshHome), PROXY_FILENAME))
 }
 
-/** Read the plugin's own stored proxy URL ('' = off; invalid/userinfo values are dropped). */
+/** Best-effort atomic scrub of a stored proxy file that held credentials. */
+function cleanupStoredProxy(file: string): void {
+  const tmp = `${file}.cleanup`
+  try {
+    writeFileSync(tmp, `${JSON.stringify({ version: PROXY_FILE_VERSION, proxyUrl: '' }, null, 2)}\n`, { mode: 0o600 })
+    renameSync(tmp, file)
+  } catch {
+    // Best effort: the read path already returns '' — disk scrubbing is defense.
+  }
+}
+
+/**
+ * Read the plugin's own stored proxy URL ('' = off; invalid/userinfo values
+ * are dropped AND the disk copy is scrubbed so credentials do not linger).
+ */
 export function readStoredProxyUrl(): string {
   try {
-    const doc = JSON.parse(readFileSync(xaiProxyPath(), 'utf8')) as {
+    const file = xaiProxyPath()
+    const doc = JSON.parse(readFileSync(file, 'utf8')) as {
       version?: unknown
       proxyUrl?: unknown
     }
     if (doc.version !== PROXY_FILE_VERSION) return ''
-    return validProxyUrl(typeof doc.proxyUrl === 'string' ? doc.proxyUrl.trim() : '') ?? ''
+    const normalized = validProxyUrl(typeof doc.proxyUrl === 'string' ? doc.proxyUrl.trim() : '')
+    if (normalized === undefined) {
+      cleanupStoredProxy(file)
+      return ''
+    }
+    return normalized
   } catch {
     return ''
   }
 }
 
-/** Persist the plugin's own proxy setting. */
+/**
+ * Persist the plugin's own proxy setting. Fail-closed: URLs with embedded
+ * credentials or invalid proxies are rejected BEFORE anything hits disk.
+ */
 export async function writeStoredProxyUrl(url: string): Promise<void> {
+  const normalized = validProxyUrl(url)
+  if (normalized === undefined) {
+    throw new Error('proxyUrl must be a valid http:// or https:// URL without embedded credentials')
+  }
   const file = xaiProxyPath()
   mkdirSync(dirname(file), { recursive: true, mode: 0o700 })
   await writeFileAtomic(file, `${JSON.stringify(
-    { version: PROXY_FILE_VERSION, proxyUrl: url.trim() },
+    { version: PROXY_FILE_VERSION, proxyUrl: normalized },
     null,
     2,
   )}\n`, { mode: 0o600, dirMode: 0o700 })
@@ -118,38 +145,49 @@ export function setXaiProxyUrl(url: string): boolean {
 /**
  * Install a transparent global-fetch hook that routes ONLY x.ai origins
  * through this plugin's ProxyAgent; every other request goes to the
- * original fetch untouched. Idempotent; without a configured URL it is a
- * pure pass-through. Returns a disposer that restores the original fetch
- * and closes the ProxyAgent (used by the plugin's ctx.effect cleanup).
+ * original fetch untouched. Reference counted: every install returns its
+ * OWN idempotent disposer, and the original fetch is restored only after
+ * the LAST owner releases — and only if our wrapper is still installed
+ * (a later component that replaced fetch after us is never clobbered).
  */
 export function installXaiFetchHook(): () => void {
-  if (hookInstalled) return disposeXaiFetchHook
-  hookInstalled = true
-  originalFetch = globalThis.fetch
-  const original = originalFetch.bind(globalThis)
-  globalThis.fetch = ((input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]): Promise<Response> => {
-    if (proxyAgent !== null && isXaiUrl(input)) {
-      return undiciFetch(input as Parameters<typeof undiciFetch>[0], {
-        ...(init ?? {}),
-        dispatcher: proxyAgent,
-      } as Parameters<typeof undiciFetch>[1]) as unknown as Promise<Response>
+  if (hookOwners === 0) {
+    originalFetch = globalThis.fetch
+    const base = originalFetch.bind(globalThis)
+    const wrapper = ((input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]): Promise<Response> => {
+      if (proxyAgent !== null && isXaiUrl(input)) {
+        return undiciFetch(input as Parameters<typeof undiciFetch>[0], {
+          ...(init ?? {}),
+          dispatcher: proxyAgent,
+        } as Parameters<typeof undiciFetch>[1]) as unknown as Promise<Response>
+      }
+      return base(input, init)
+    }) as typeof fetch
+    globalThis.fetch = wrapper
+    installedWrapper = wrapper
+  }
+  hookOwners += 1
+  let released = false
+  return () => {
+    if (released) return
+    released = true
+    hookOwners -= 1
+    if (hookOwners > 0) return
+    // Only restore when our wrapper is still the installed fetch; a later
+    // third-party hook must not be clobbered by our dispose.
+    if (installedWrapper !== undefined && globalThis.fetch === installedWrapper) {
+      globalThis.fetch = originalFetch ?? globalThis.fetch
     }
-    return original(input, init)
-  }) as typeof fetch
-  return disposeXaiFetchHook
+    const previous = proxyAgent
+    proxyAgent = null
+    if (previous !== null) void previous.close().catch(() => undefined)
+    installedWrapper = undefined
+    originalFetch = undefined
+  }
 }
 
-/** Restore the original fetch and close the proxy agent. Idempotent. */
-export function disposeXaiFetchHook(): void {
-  if (!hookInstalled) return
-  hookInstalled = false
-  const previous = proxyAgent
-  proxyAgent = null
-  if (previous !== null) void previous.close().catch(() => undefined)
-  if (originalFetch !== undefined) globalThis.fetch = originalFetch
-  originalFetch = undefined
-}
-
+let hookOwners = 0
+let installedWrapper: typeof fetch | undefined
 let originalFetch: typeof fetch | undefined
 
 /** Effective proxy URL: stored setting > config `proxyUrl` > `DSH_XAI_PROXY`. Invalid/userinfo values resolve to ''. */
@@ -161,9 +199,12 @@ export function resolveXaiProxyUrl(configUrl?: string): string {
   return validProxyUrl(candidate) ?? ''
 }
 
-/** Install the hook and apply the current URL. Returns the effective URL, '' when unset/invalid. */
+/**
+ * Apply the effective proxy URL (stored > config > env) to the already
+ * installed hook. Callers own the hook lifecycle via installXaiFetchHook().
+ * Returns the effective URL, '' when unset/invalid.
+ */
 export function applyXaiProxy(configUrl?: string): string {
-  installXaiFetchHook()
   const url = resolveXaiProxyUrl(configUrl)
   setXaiProxyUrl(url)
   return url

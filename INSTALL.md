@@ -51,7 +51,7 @@ dsh plugin --profile web add .
 
 ## Sign in
 
-> **Unofficial integration:** This is not an official xAI or X product and does not claim product-specific permission or endorsement. OAuth availability depends on account entitlement and current xAI policies. Read the full unofficial-project, trademark, and account-use notice in the README before signing in.
+> **Unofficial integration:** This is not an official xAI or X product and does not claim product-specific permission or endorsement. OAuth availability depends on account entitlement and current xAI policies. Read the full [unofficial-project, trademark, and account-use notice in the README](README.md) before signing in.
 
 Web UI:
 

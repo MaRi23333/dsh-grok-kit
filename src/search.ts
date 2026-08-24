@@ -1,3 +1,8 @@
+//
+// Adapted from the dsh-xai web-search fork by lonefisher
+// (https://github.com/lonefisher/dsh-xai), Apache-2.0.
+// Modified for dsh-grok-kit — see NOTICE for the full attribution.
+//
 /**
  * Server-side xAI search tools over the Responses API.
  *

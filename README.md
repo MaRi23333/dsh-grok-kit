@@ -23,11 +23,11 @@ The catalog `xai` API-key route stays untouched. This plugin registers `xai-oaut
 
 ## Highlights
 
-**Full Grok search power, fused into the main loop — the flagship feature.** `{type:web_search}` / `{type:x_search}` ride the *same* Responses turn as the reply: the search **is** the thinking. No nested search hop, no second model call, no URL-list-only discovery — grok-4.6 searches with the same capability xAI exposes to its own apps through the public API surface. **The complete X search toolset is server-side too**: when it wants X detail, xAI emits one of `x_keyword_search` (keyword), `x_semantic_search` (semantic), `x_user_search` (user) or `x_thread_fetch` (thread/conversation) as a `custom_tool_call` — whichever mode fits — and the search already ran inside that turn. The bundle registers execute-only tools under those exact names so the DSH loop can finish the round; none of them is a second search pipeline.
+**Full Grok search power, fused into the main loop — the flagship feature.** `{type:web_search}` / `{type:x_search}` ride the *same* Responses turn as the reply: the search **is** the thinking. No nested search hop, no second model call, no URL-list-only discovery — the main grok-4.6 request carries xAI's server-side `web_search` and `x_search` tools. **The complete X search toolset is server-side too**: when it wants X detail, xAI emits one of `x_keyword_search` (keyword), `x_semantic_search` (semantic), `x_user_search` (user) or `x_thread_fetch` (thread/conversation) as a `custom_tool_call` — whichever mode fits — and the search already ran inside that turn. The bundle registers execute-only tools under those exact names so the DSH loop can finish the round; none of them is a second search pipeline.
 
 **Subscription, not API key.** Sign in with your SuperGrok / X Premium account through a device-code flow in Settings. No `XAI_API_KEY`, no dsh source patch. The plugin shares `~/.grok/auth.json` with the Grok CLI, so dsh and the CLI rotate the same grant in place — no separate login, no token copying.
 
-**Grok-4.6 to the fullest.** Hand-written model descriptor: 500k context, `xhigh` reasoning, default `high` effort, `reasoning.encrypted_content` included so multi-turn reasoning continuity works (the encrypted thinking replays on the next turn). Future mainline ids (`grok-4.7`, `grok-5`, …) inherit the newest descriptor automatically — no plugin update needed when xAI ships the next Grok.
+**Grok-4.6 to the fullest.** Hand-written model descriptor: 500k context, `xhigh` reasoning, default `high` effort, `reasoning.encrypted_content` included so multi-turn reasoning continuity works (the encrypted thinking replays on the next turn). Mainline ids (`grok-4.7`, `grok-5`, …) are mapped to the newest descriptor shipped in this bundle — if a newer Grok needs capabilities the descriptor does not declare, update the plugin as usual.
 
 **A model picker that only shows mainline Grok.** grok-4.5, grok-4.6 and future grok-4.x / grok-5 only. `grok-build-0.1`, `grok-code-fast`, Imagine / video / embedding ids are hidden from both the composer and the Settings page.
 
@@ -73,7 +73,7 @@ See [INSTALL.md](INSTALL.md) / [INSTALL.zh.md](INSTALL.zh.md) for the full runbo
 
 ## Search
 
-The main request fuses xAI server-side search into the reply itself: web search runs inside the same Responses turn and shows up as **thinking** — no tool call, no separate search hop. That mirrors the search experience of xAI's own apps, achieved through the public API surface.
+The main request fuses xAI server-side search into the reply itself: web search runs inside the same Responses turn and shows up as **thinking** — no tool call, no separate search hop. Search calls and their results stay inside that one turn.
 
 When the model wants more X-specific detail, xAI emits a `custom_tool_call` (`x_keyword_search` / `x_semantic_search` / …) into the stream — **that name appearing means an X search already ran on xAI's side inside this turn** (searching X is the model's way to fetch more, not a second search pipeline). The bundle registers execute-only tools under those exact names so the DSH loop can finish the round; their body only says the search already ran. Do not mistake them for nested search.
 
