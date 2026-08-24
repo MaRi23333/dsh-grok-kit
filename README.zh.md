@@ -94,7 +94,7 @@ xAI 的 refresh token 会轮换。共用 `~/.grok/auth.json` 后，dsh 和 Grok 
 
 - **聊天 HTTP 401** 会按搜索工具同一套纪律强制刷新一次（403 不刷新，那是档位门）。刷新失败仍要去 设置 → xAI Grok 重新登录。
 - **搜索 403：** 部分 SuperGrok 档位登录成功但拒绝服务端搜索。嵌套路径可换 `searchModel`（如 `grok-4.5`）；主请求混合则设 `backendSearch: false`。
-- **Backend search** 已在组合里默认打开。搜完下一轮若因 `encrypted_content` 配对 400，再关 `backendSearch`。
+- **Backend search** 已在组合里默认打开。理论上「搜过的下一轮」可能因 xAI 把 `encrypted_content` 与省略的 `*_search_call` 配对而 400——**2026-08-24 实测未复现**（维护者连续多轮使用 + grok-4.6 跨轮探针：搜索一轮、下一轮列来源，均 HTTP 200）。回退方案保留：真碰到就设 `backendSearch: false`。
 - **X 搜索 UI 桩：** pi-ai 会把 xAI 的 `custom_tool_call`（`x_keyword_search` / `x_semantic_search` 等）当成客户端工具。本插件注册只执行的桩，卡片标题是 “X search”，用来把这一轮跑完——搜索已经在服务端做过。多一轮很便宜。不要把这些桩名当成嵌套搜索。
 - **Windows ACL：** Node 的文件 mode 位不是 Windows ACL。Windows 上活凭证在 `~/.grok/auth.json`——靠用户 profile 目录私有（`%USERPROFILE%` 默认满足）。`$DSH_HOME`（写锁、遗留凭证/代理文件）同理；若任一目录在共享位置，请自行收紧 ACL。
 - **schema 默认 vs bundle 默认：** Config schema 的默认是 `backendSearch: false` + 嵌套工具开；本 bundle 靠 `cordis.patch.yml` 翻成文档所述的默认。手动 compose / 精简配置如果没有 patch，行为是嵌套搜索路径——装完用 `dsh --profile web --dump-config` 确认。
