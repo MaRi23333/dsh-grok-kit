@@ -13,7 +13,7 @@
   <img src="https://img.shields.io/badge/status-unofficial%20community%20plugin-7c84a8" alt="Unofficial community plugin">
 </p>
 
-> Use an eligible SuperGrok or X Premium subscription in DeepSeek Harness through OAuth, with Grok chat, server-side web/X search in the main model turn, Imagine image generation, and an xAI-only proxy.
+> 通过 OAuth 在 DeepSeek Harness 中使用 Grok：主循环融合网页与 X 搜索、连续 reasoning、Imagine，以及仅作用于 xAI 的独立代理。
 
 > [!IMPORTANT]
 > **非官方项目、商标与账户使用声明**
@@ -22,24 +22,30 @@
 >
 > OAuth 可用性可能受订阅档位、地区、xAI 条款、账户资格、速率限制和后续服务变更影响。用户应自行确认其账户与用途获准；本项目不保证持续可用性或兼容性，也不提供 xAI/Grok 账号、订阅或官方支持。
 
-## 它做什么
+## 不止于 OAuth 登录
 
-`dsh-grok-kit` 为 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 增加独立的 `xai-oauth` 路由，并复用 Grok CLI 的本地登录文件。它不要求 `XAI_API_KEY`，也不修改 dsh 源码；内置的 `xai` API Key 路由仍可并存。
+`dsh-grok-kit` 为 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 增加独立的 `xai-oauth` 路由。它不要求 `XAI_API_KEY`，也不修改 dsh 源码；重点不只是“能登录”，而是把服务端搜索和连续 reasoning 所需的请求字段接进主聊天路径。
 
-- 在设置页完成 device-code 登录、退出与账号可见模型选择
-- 通过 `xai-oauth` 使用 Grok 聊天、流式输出、工具调用和 reasoning
-- 把 xAI 服务端网页与 X 搜索放进主模型请求，而不是另开一轮搜索模型
-- 提供 `grok_imagine` 图片生成工具
-- 提供只作用于 `x.ai` 请求的独立 HTTP/HTTPS 代理
-- 对 OAuth 文件、刷新并发、设置接口和诊断输出做防泄露处理
+- **搜索融入主循环：** 网页与 X 检索发生在 grok-4.6 的同一轮 Think 中，推理可以直接使用刚搜到的材料
+- **多轮 reasoning 连续：** 默认使用 high effort，并保留 `reasoning.encrypted_content`，让后续回合能够带回加密推理上下文
+- **登录状态与 Grok CLI 同步：** 直接共用并回写 `~/.grok/auth.json`，不是只复制一次后各自轮换 refresh token
+- **Imagine 与干净的模型选择器：** `grok_imagine` 默认开启，非聊天模型不会混进对话模型列表
+
+此外还包括 xAI 专用代理、聊天 401 强制刷新重试、凭据原子写入与诊断脱敏等支撑能力。
 
 ## 主循环融合搜索
 
-本插件的默认 bundle 会把 xAI 服务端 `{type:web_search}` 与 `{type:x_search}` 混入同一轮 Grok Responses 请求。网页检索通常直接体现在 **Think** 里：检索、推理和回答属于同一轮，不需要由 DeepSeek Harness 再调用一条嵌套搜索流水线。
+同一个模型 id，不代表不同接入方式一定有相同的使用体验。[xAI 官方说明 Grok Build 与公开 API 都提供 `grok-4.6`](https://docs.x.ai/build/overview)；真正影响搜索体验的，是服务端工具是否和主对话处在同一轮请求里。
 
-当 xAI 返回 `x_keyword_search`、`x_semantic_search`、`x_user_search` 或 `x_thread_fetch` 这类 `custom_tool_call` 时，搜索已经在 xAI 服务端执行。插件注册同名的收尾工具，让 DSH 主循环能够完成该轮；这些收尾工具本身不会再次发起搜索。
+**分离式搜索**会额外发起一轮模型请求完成检索或摘要，再把结果交回主对话。它仍然适合需要独立过滤条件的任务，但会多出一轮模型处理，而且搜索摘要不是在当前回复的 Think 中生成。
 
-需要域名、账号或日期过滤时，可关闭 `backendSearch`，或显式启用 `nestedSearchTools`，使用独立的 `grok_web_search` / `x_search` 回退模式。
+**主循环融合搜索**则按 [xAI Responses API 的服务端搜索方式](https://docs.x.ai/developers/tools/web-search)，把 `{type:web_search}` 与 `{type:x_search}` 直接放进主 grok-4.6 请求。检索发生在 Think 里，模型能在同一轮推理中使用刚获得的网页和 X 材料；默认 bundle 已启用这条路径。
+
+为让两类搜索共存，宿主原生 `web_search` 仍保留在 DSH 工具列表中，但会从启用融合搜索的 xAI payload 里移除，避免服务端工具重名；其他模型路由仍可照常使用宿主搜索。
+
+> 界面偶尔出现 `x_keyword_search` 等名称时，表示 xAI 已经完成了该次 X 搜索。插件中的同名项只负责让 DSH 收尾当前回合，不会再次检索。
+
+需要按域名、账号或日期过滤时，可关闭 `backendSearch` 或启用 `nestedSearchTools`，改走独立的 `grok_web_search` / `x_search`。这是可选模式，不是默认路径。
 
 ## 界面与效果
 
@@ -57,7 +63,7 @@
 <p align="center">
   <img src="assets/readme/main-loop-search.png" width="760" alt="Grok 在同一轮 Think 中完成网页搜索并回答">
 </p>
-<p align="center"><em>网页检索直接发生在同一轮 Think 中，不显示为宿主侧的常规工具调用。截图里的新闻内容只用于展示交互，不作为事实来源。</em></p>
+<p align="center"><em>没有另起嵌套搜索工具卡片：网页检索直接发生在同一轮 Think 中，材料随即用于当前回复。截图里的新闻内容只用于展示交互，不作为事实来源。</em></p>
 
 <br><br>
 
@@ -91,7 +97,7 @@ npx @deepseek-ai/dsh web
 ## 模型与工具
 
 - 模型选择器只展示主线 Grok 聊天模型；Imagine、video、embedding、build/code 变体会被隐藏
-- 默认模型描述符为 grok-4.6，包含 reasoning 与多轮加密推理连续性所需的字段
+- 默认 grok-4.6 描述符使用 high reasoning，并请求 `reasoning.encrypted_content`，以便后续回合带回加密推理上下文
 - `grok_imagine` 默认开启；宿主支持附件服务时，结果以图片块进入会话
 - dsh 原生 `web_search` 仍保留在宿主工具列表中，但会从启用 backend search 的 xAI payload 中移除，避免工具重名
 
@@ -114,7 +120,7 @@ npx @deepseek-ai/dsh web
 
 ## 登录文件、代理与安全边界
 
-- 优先使用 `~/.grok/auth.json`，与 Grok CLI 共用同一份 xAI 凭据；在设置页退出也会让 Grok CLI 退出
+- 优先使用 `~/.grok/auth.json`，与 Grok CLI 原地共用同一份 xAI 凭据；登录和刷新都会写回该文件，而不是只做一次性导入；在设置页退出也会让 Grok CLI 退出
 - OAuth 刷新令牌会轮换；插件用原子写入、进程内合并和 compare-and-write 避免并发刷新互相覆盖
 - 浏览器状态接口、错误信息和诊断不会返回 token 值
 - 代理只接受不含用户名/密码的 `http://` 或 `https://` URL；带 userinfo 的旧值会被清理，不会进入状态响应或日志
@@ -125,7 +131,7 @@ npx @deepseek-ai/dsh web
 
 - 某些订阅档位可能允许浏览器登录，却对聊天或服务端搜索返回 HTTP 403；这是账户资格/服务策略问题，不等同于 token 过期
 - HTTP 401 会在串行刷新后重试一次；403 不会按 token 过期处理
-- 不支持与旧版 `dsh-xai` bundle 同时安装；请先运行 `dsh plugin --profile web remove dsh-xai`
+- 不支持与另一个注册相同 xAI OAuth 路由的 bundle 同时安装；请先按 [INSTALL.zh.md](INSTALL.zh.md) 的迁移步骤移除冲突 bundle
 - backend search 是本 bundle 的默认组合，但可用性仍由账号、模型和 xAI 当前服务决定
 - 删除插件不会自动删除 `~/.grok/auth.json`；需要清理本地登录时，请先在设置页退出
 

@@ -13,7 +13,7 @@
   <img src="https://img.shields.io/badge/status-unofficial%20community%20plugin-7c84a8" alt="Unofficial community plugin">
 </p>
 
-> Use an eligible SuperGrok or X Premium subscription in DeepSeek Harness through OAuth, with Grok chat, server-side web/X search in the main model turn, Imagine image generation, and an xAI-only proxy.
+> Use an eligible SuperGrok or X Premium subscription in DeepSeek Harness through OAuth, with web/X search in the main model turn, continuous reasoning, Imagine, and an xAI-only proxy.
 
 > [!IMPORTANT]
 > **Unofficial project, trademark, and account-use notice**
@@ -22,24 +22,30 @@
 >
 > OAuth availability may depend on subscription tier, region, xAI terms, account entitlement, rate limits, and future service changes. Users are responsible for confirming that their account and use are permitted. This project does not guarantee continued access or compatibility and does not provide xAI/Grok accounts, subscriptions, or official support.
 
-## What it does
+## More than OAuth sign-in
 
-`dsh-grok-kit` adds a separate `xai-oauth` route to [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) and reuses the local Grok CLI sign-in document. It does not require `XAI_API_KEY` or patch dsh source code; the built-in `xai` API-key route can remain installed alongside it.
+`dsh-grok-kit` adds a separate `xai-oauth` route to [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). It does not require `XAI_API_KEY` or patch dsh source code. The point is not only to sign in, but to bring server-side search and the fields required for continuous reasoning into the main chat path.
 
-- Device-code sign-in, sign-out, and account-visible model selection in Settings
-- Grok chat, streaming, tool calls, and reasoning through `xai-oauth`
-- xAI server-side web and X search inside the main model request instead of another search-model hop
-- A `grok_imagine` image-generation tool
-- An independent HTTP/HTTPS proxy that applies only to `x.ai` requests
-- Defensive handling for OAuth files, concurrent refreshes, settings routes, and diagnostic redaction
+- **Search in the main loop:** web and X lookup occurs inside grok-4.6's current Think turn, so reasoning can use newly found material immediately
+- **Continuous multi-turn reasoning:** high effort is the default, with `reasoning.encrypted_content` preserved for the next turn
+- **Sign-in stays in sync with Grok CLI:** the plugin shares and writes back `~/.grok/auth.json` instead of copying once and rotating refresh tokens separately
+- **Imagine with a clean model picker:** `grok_imagine` is enabled by default, while non-chat models stay out of the conversation picker
+
+Supporting behavior includes an xAI-only proxy, forced refresh and one retry on chat 401, atomic credential writes, and diagnostic redaction.
 
 ## Search in the main model turn
 
-The default bundle mixes xAI server-side `{type:web_search}` and `{type:x_search}` into the same Grok Responses request. Web lookup normally appears directly inside **Think**: lookup, reasoning, and the answer belong to one model turn, without asking DeepSeek Harness to run a separate nested search pipeline.
+The same model id does not guarantee the same experience across integrations. [xAI documents that `grok-4.6` is available in both Grok Build and the public API](https://docs.x.ai/build/overview); the important search difference is whether server-side tools share the main conversation request.
 
-When xAI returns a `custom_tool_call` such as `x_keyword_search`, `x_semantic_search`, `x_user_search`, or `x_thread_fetch`, the search has already executed server-side. The plugin registers completion tools under those names so the DSH loop can finish the turn; those tools do not launch a second search.
+**Separate search** sends another model request to retrieve or summarize material before returning it to the main conversation. That path remains useful when explicit filters are needed, but adds another model round, and its search summary is not produced inside the current reply's Think turn.
 
-For domain, account, or date filters, disable `backendSearch` or explicitly enable `nestedSearchTools` to use the separate `grok_web_search` / `x_search` fallback mode.
+**Main-turn search** follows [xAI's server-side Responses search pattern](https://docs.x.ai/developers/tools/web-search), placing `{type:web_search}` and `{type:x_search}` directly on the main grok-4.6 request. Lookup occurs inside Think, so the model can use newly found web and X material during the same reasoning turn. The default bundle enables this path.
+
+To let both search systems coexist, DSH's native `web_search` remains in the host tool list but is removed from an xAI payload with fused search enabled, preventing a server-tool name collision. Other model routes can continue using the host search tool normally.
+
+> If a name such as `x_keyword_search` briefly appears in the UI, xAI has already completed that X search. The matching plugin item only lets DSH finish the current turn; it does not search again.
+
+For domain, account, or date filters, disable `backendSearch` or enable `nestedSearchTools` to use standalone `grok_web_search` / `x_search`. This is an optional mode, not the default path.
 
 ## Interface and behavior
 
@@ -57,7 +63,7 @@ For domain, account, or date filters, disable `backendSearch` or explicitly enab
 <p align="center">
   <img src="assets/readme/main-loop-search.png" width="760" alt="Grok completes web search inside the same Think turn">
 </p>
-<p align="center"><em>Web lookup occurs inside the same Think turn rather than appearing as a normal host-side tool call. The news content is illustrative UI data, not a factual reference.</em></p>
+<p align="center"><em>No nested search-tool card is opened: web lookup occurs inside the same Think turn, and the material is used immediately by the current reply. The news content is illustrative UI data, not a factual reference.</em></p>
 
 <br><br>
 
@@ -91,7 +97,7 @@ See [INSTALL.md](INSTALL.md) for installation, migration, removal, and troublesh
 ## Models and tools
 
 - The picker shows only mainline Grok chat models; Imagine, video, embedding, build, and code variants are hidden
-- The default grok-4.6 descriptor includes reasoning fields and encrypted reasoning continuity for multi-turn use
+- The default grok-4.6 descriptor uses high reasoning and requests `reasoning.encrypted_content` so encrypted reasoning context can be carried into later turns
 - `grok_imagine` is enabled by default; when the host attachment service is available, output enters the session as an image block
 - DSH's native `web_search` remains in the host tool list, but is removed from an xAI payload with backend search enabled to avoid duplicate tool names
 
@@ -114,7 +120,7 @@ The bundle defaults come from `cordis.patch.yml`. For a manually reduced or reco
 
 ## Sign-in document, proxy, and security boundaries
 
-- The live store prefers `~/.grok/auth.json`, sharing the same xAI credential with Grok CLI; signing out in Settings signs Grok CLI out too
+- The live store prefers `~/.grok/auth.json`, sharing the same xAI credential with Grok CLI in place; sign-in and refresh write back to that file instead of performing a one-time import, and signing out in Settings signs Grok CLI out too
 - OAuth refresh tokens rotate; atomic writes, in-process coalescing, and compare-and-write prevent concurrent refreshes from overwriting one another
 - Browser status routes, errors, and diagnostics do not return token values
 - Proxy settings accept only `http://` or `https://` URLs without embedded credentials; legacy values containing userinfo are scrubbed and do not reach status responses or logs
@@ -125,7 +131,7 @@ The bundle defaults come from `cordis.patch.yml`. For a manually reduced or reco
 
 - Some subscription tiers may allow browser sign-in but return HTTP 403 for chat or server-side search; this is an entitlement/service-policy result, not necessarily an expired token
 - HTTP 401 is retried once after serialized refresh; 403 is not treated as token expiry
-- Running this bundle together with the old `dsh-xai` bundle is unsupported; remove it first with `dsh plugin --profile web remove dsh-xai`
+- Running this bundle alongside another bundle that registers the same xAI OAuth route is unsupported; follow the migration steps in [INSTALL.md](INSTALL.md) and remove the conflicting bundle first
 - Backend search is the default composition, but availability still depends on the account, selected model, and xAI's current service behavior
 - Removing the plugin does not delete `~/.grok/auth.json`; sign out in Settings first if the local login should be removed
 
