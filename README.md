@@ -17,7 +17,7 @@ The catalog `xai` API-key route stays untouched. This plugin registers `xai-oaut
 
 ## Highlights
 
-**Full Grok search power, fused into the main loop — the flagship feature.** `{type:web_search}` / `{type:x_search}` ride the *same* Responses turn as the reply: the search **is** the thinking. No nested search hop, no second model call, no URL-list-only discovery — grok-4.6 searches with its full ability, exactly like Grok Build does, over the public API. When it wants more from X, xAI's `custom_tool_call` (`x_keyword_search` / `x_semantic_search` / …) appears in the stream — the X search already ran server-side inside that turn (`x_keyword_search` showing up is the model fetching *more* X detail, not a second search pipeline).
+**Full Grok search power, fused into the main loop — the flagship feature.** `{type:web_search}` / `{type:x_search}` ride the *same* Responses turn as the reply: the search **is** the thinking. No nested search hop, no second model call, no URL-list-only discovery — grok-4.6 searches with its full ability, exactly like Grok Build does, over the public API. **The complete X search toolset is server-side too**: when it wants X detail, xAI emits one of `x_keyword_search` (keyword), `x_semantic_search` (semantic), `x_user_search` (user) or `x_thread_fetch` (thread/conversation) as a `custom_tool_call` — whichever mode fits — and the search already ran inside that turn. The bundle registers execute-only tools under those exact names so the DSH loop can finish the round; none of them is a second search pipeline.
 
 **Subscription, not API key.** Sign in with your SuperGrok / X Premium account through a device-code flow in Settings. No `XAI_API_KEY`, no dsh source patch. The plugin shares `~/.grok/auth.json` with the Grok CLI, so dsh and the CLI rotate the same grant in place — no separate login, no token copying.
 
@@ -32,7 +32,7 @@ The catalog `xai` API-key route stays untouched. This plugin registers `xai-oaut
 | | dsh-grok-kit | Typical Grok-listener plugins |
 | --- | --- | --- |
 | Auth | SuperGrok / X Premium **OAuth**, device-code, no API key | API key, third-party relay, or a patched source tree |
-| Search | **In the main request**: thinking *is* the search; server-side X search via `custom_tool_call` | Nested LLM hop (`grok-build-0.1` style) or no real search at all |
+| Search | **In the main request**: thinking *is* the search; the **full X toolset** (keyword / semantic / user / thread) runs server-side via `custom_tool_call` | Nested LLM hop (`grok-build-0.1` style), a single X mode, or no real search at all |
 | Model | grok-4.6: 500k context, `xhigh`, encrypted-reasoning continuity, future-proof descriptor | Static past-generation ids |
 | Picker | Mainline Grok only | Imagine / video / build variants mixed in |
 | Proxy | xAI-only, per-plugin, zero global impact | Global env takeover or none |
