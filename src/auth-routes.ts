@@ -17,6 +17,11 @@ import type { CatalogSource } from './catalog.ts'
 import { probeGrokAuth } from './grok-import.ts'
 import { readStoredProxyUrl, setXaiProxyUrl, validProxyUrl, writeStoredProxyUrl } from './proxy.ts'
 import { safeMessage } from './redact.ts'
+import {
+  readStoredOptions,
+  type StoredPluginOptions,
+  writeStoredOptions,
+} from './options.ts'
 import type { XaiOAuthSession } from './session.ts'
 
 export const XAI_OAUTH_AUTH_STATUS_PATH = '/plugins/dsh-grok-kit/auth/status'
@@ -25,6 +30,36 @@ export const XAI_OAUTH_AUTH_IMPORT_PATH = '/plugins/dsh-grok-kit/auth/import'
 export const XAI_OAUTH_AUTH_LOGOUT_PATH = '/plugins/dsh-grok-kit/auth/logout'
 export const XAI_OAUTH_AUTH_MODELS_PATH = '/plugins/dsh-grok-kit/auth/models'
 export const XAI_OAUTH_AUTH_PROXY_PATH = '/plugins/dsh-grok-kit/auth/proxy'
+export const XAI_OAUTH_AUTH_OPTIONS_PATH = '/plugins/dsh-grok-kit/auth/options'
+
+/** Known option keys; POST accepts null / '' to remove an explicit override. */
+const OPTION_KEYS: ReadonlyArray<keyof StoredPluginOptions> = [
+  'backendSearch',
+  'nestedSearchTools',
+  'statefulResponses',
+  'imagineTool',
+  'searchModel',
+  'searchMaxResults',
+  'webSearchTimeoutMs',
+  'xSearchTimeoutMs',
+]
+
+/** Merge a partial POST body over the stored overrides (null / '' removes). */
+export function mergeStoredOptionsPatch(
+  current: StoredPluginOptions,
+  patch: unknown,
+): StoredPluginOptions {
+  if (typeof patch !== 'object' || patch === null || Array.isArray(patch)) return current
+  const next: Record<string, unknown> = { ...current }
+  for (const key of OPTION_KEYS) {
+    if (!(key in patch)) continue
+    const value = (patch as Record<string, unknown>)[key]
+    if (value === null || value === undefined || value === '') delete next[key]
+    else next[key] = value
+  }
+  // Return next directly — spreading current again would resurrect deleted keys.
+  return next as StoredPluginOptions
+}
 
 export type XaiOAuthWebAuthStatus =
   | { status: 'signed-out'; grokImportAvailable: boolean; sharedGrokAuth: boolean }
@@ -411,6 +446,25 @@ export function registerXaiOAuthAuthRoutes(
             setXaiProxyUrl(proxyUrl)
             await writeStoredProxyUrl(proxyUrl)
             json(res, 200, { proxyUrl: normalized })
+          } catch (error: unknown) {
+            json(res, errorStatus(error), { error: safeMessage(error) })
+          }
+        },
+      }),
+      ctx.webServer.register({
+        kind: 'exact',
+        path: XAI_OAUTH_AUTH_OPTIONS_PATH,
+        handler: async (req, res) => {
+          if (!trustedRequest(req)) return json(res, 403, { error: 'forbidden' })
+          if (req.method === 'GET') {
+            return json(res, 200, { options: readStoredOptions() })
+          }
+          if (req.method !== 'POST') return json(res, 405, { error: 'method not allowed' })
+          try {
+            const body = await readJson(req)
+            const merged = mergeStoredOptionsPatch(readStoredOptions(), body)
+            await writeStoredOptions(merged)
+            json(res, 200, { options: merged })
           } catch (error: unknown) {
             json(res, errorStatus(error), { error: safeMessage(error) })
           }

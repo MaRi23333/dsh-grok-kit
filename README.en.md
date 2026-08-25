@@ -132,6 +132,8 @@ The model list comes from the signed-in account's `GET /v1/models` response and 
 
 The bundle defaults come from `cordis.patch.yml`. For a manually reduced or recomposed setup, inspect the final values with `dsh --profile web --dump-config`.
 
+The “Search & feature options” card on Settings → xAI Grok can also override the search/feature keys above (restart to apply; untouched keys keep following the bundle defaults instead of being pinned). `proxyUrl` is the exception — it applies immediately on save.
+
 ## Sign-in document, proxy, and security boundaries
 
 - The live store prefers `~/.grok/auth.json`, sharing the same xAI credential with Grok CLI in place; sign-in and refresh write back to that file instead of performing a one-time import, and signing out in Settings signs Grok CLI out too

@@ -18,7 +18,35 @@ const IMPORT_PATH = '/plugins/dsh-grok-kit/auth/import'
 const LOGOUT_PATH = '/plugins/dsh-grok-kit/auth/logout'
 const MODELS_PATH = '/plugins/dsh-grok-kit/auth/models'
 const PROXY_PATH = '/plugins/dsh-grok-kit/auth/proxy'
+const OPTIONS_PATH = '/plugins/dsh-grok-kit/auth/options'
 const POLL_INTERVAL_MS = 1_000
+
+type OptionKey =
+  | 'backendSearch'
+  | 'nestedSearchTools'
+  | 'statefulResponses'
+  | 'imagineTool'
+  | 'searchModel'
+  | 'searchMaxResults'
+  | 'webSearchTimeoutMs'
+  | 'xSearchTimeoutMs'
+
+type OptionValue = boolean | number | string | undefined
+
+const ALL_OPTION_KEYS: readonly OptionKey[] = [
+  'backendSearch',
+  'nestedSearchTools',
+  'statefulResponses',
+  'imagineTool',
+  'searchModel',
+  'searchMaxResults',
+  'webSearchTimeoutMs',
+  'xSearchTimeoutMs',
+]
+
+function optBool(value: OptionValue | undefined, fallback: boolean): boolean {
+  return typeof value === 'boolean' ? value : fallback
+}
 
 type CatalogSource = 'live' | 'cache' | 'fallback'
 
@@ -82,6 +110,19 @@ const listStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap
 const modelRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 10, padding: '6px 10px', borderRadius: 8, color: 'var(--dsw-alias-label-primary)' }
 const modelNameStyle: CSSProperties = { fontSize: 14, fontWeight: 500 }
 const modelIdStyle: CSSProperties = { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', fontSize: 12, color: 'var(--dsw-alias-label-dimmed)' }
+const optionRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: 'var(--dsw-alias-label-primary)', flexWrap: 'wrap' }
+const optionHintStyle: CSSProperties = { ...bodyStyle, fontSize: 12, margin: 0, color: 'var(--dsw-alias-label-dimmed)' }
+const optionInputStyle: CSSProperties = {
+  flex: '1 1 200px',
+  minHeight: 30,
+  padding: '4px 10px',
+  border: '1px solid var(--dsw-alias-border-l2)',
+  borderRadius: 8,
+  background: 'var(--dsw-alias-bg-layer-1)',
+  color: 'var(--dsw-alias-label-primary)',
+  font: 'inherit',
+  fontSize: 13,
+}
 const badgeStyle: CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 9px', borderRadius: 999, border: '1px solid var(--dsw-alias-border-l2)', fontSize: 12, fontWeight: 500, color: 'var(--dsw-alias-label-secondary)', whiteSpace: 'nowrap' }
 const sourceBadgeStyle: CSSProperties = { ...badgeStyle, fontWeight: 600 }
 
@@ -139,6 +180,58 @@ export function XaiSettings({ t }: XaiOAuthSettingsProps) {
   const [proxyBusy, setProxyBusy] = useState(false)
   const [proxyFeedback, setProxyFeedback] = useState<'idle' | 'saved' | 'error'>('idle')
   const [popupBlocked, setPopupBlocked] = useState(false)
+  const [options, setOptions] = useState<Partial<Record<OptionKey, OptionValue>>>({})
+  const [optionsDirty, setOptionsDirty] = useState<ReadonlySet<OptionKey>>(new Set())
+  const [optionsBusy, setOptionsBusy] = useState(false)
+  const [optionsFeedback, setOptionsFeedback] = useState<'idle' | 'saved' | 'error'>('idle')
+
+  const markOption = (key: OptionKey, value: OptionValue): void => {
+    setOptions(previous => ({ ...previous, [key]: value }))
+    setOptionsDirty(previous => new Set(previous).add(key))
+    setOptionsFeedback('idle')
+  }
+
+  const loadOptions = useCallback(async () => {
+    try {
+      const value = await jsonRequest<{ options: Partial<Record<OptionKey, OptionValue>> }>(OPTIONS_PATH)
+      setOptions(value.options ?? {})
+      setOptionsDirty(new Set())
+    } catch {
+      setOptionsFeedback('error')
+    }
+  }, [])
+
+  const saveOptions = async (): Promise<void> => {
+    setOptionsBusy(true)
+    try {
+      const patch: Record<string, unknown> = {}
+      for (const key of optionsDirty) patch[key] = options[key] ?? null
+      const value = await jsonRequest<{ options: Partial<Record<OptionKey, OptionValue>> }>(OPTIONS_PATH, 'POST', patch)
+      setOptions(value.options ?? {})
+      setOptionsDirty(new Set())
+      setOptionsFeedback('saved')
+    } catch {
+      setOptionsFeedback('error')
+    } finally {
+      setOptionsBusy(false)
+    }
+  }
+
+  const resetOptions = async (): Promise<void> => {
+    setOptionsBusy(true)
+    try {
+      const patch: Record<string, unknown> = {}
+      for (const key of ALL_OPTION_KEYS) patch[key] = null
+      const value = await jsonRequest<{ options: Partial<Record<OptionKey, OptionValue>> }>(OPTIONS_PATH, 'POST', patch)
+      setOptions(value.options ?? {})
+      setOptionsDirty(new Set())
+      setOptionsFeedback('saved')
+    } catch {
+      setOptionsFeedback('error')
+    } finally {
+      setOptionsBusy(false)
+    }
+  }
 
   const loadProxy = useCallback(async () => {
     try {
@@ -171,6 +264,7 @@ export function XaiSettings({ t }: XaiOAuthSettingsProps) {
 
   useEffect(() => { void refresh() }, [refresh])
   useEffect(() => { void loadProxy() }, [loadProxy])
+  useEffect(() => { void loadOptions() }, [loadOptions])
   useEffect(() => {
     if (status.status !== 'signing-in') return
     const timer = window.setInterval(() => { void refresh() }, POLL_INTERVAL_MS)
@@ -407,6 +501,131 @@ export function XaiSettings({ t }: XaiOAuthSettingsProps) {
           ? <p style={{ ...bodyStyle, color: 'var(--dsw-alias-state-success-primary, #22a06b)' }}>{t('proxySaved')}</p>
           : null}
         {proxyFeedback === 'error' ? <p style={errorStyle}>{t('proxyError')}</p> : null}
+      </div>
+
+      {/* Search & feature options card */}
+      <div style={cardStyle}>
+        <div style={rowStyle}>
+          <h3 style={{ ...titleStyle, fontSize: 14 }}>{t('optionsTitle')}</h3>
+          <button type="button" style={buttonStyle} disabled={optionsBusy} onClick={() => { void resetOptions() }}>
+            {t('optionsReset')}
+          </button>
+        </div>
+        <p style={bodyStyle}>{t('optionsHint')}</p>
+
+        <label style={optionRowStyle}>
+          <input
+            type="checkbox"
+            checked={optBool(options.backendSearch, true)}
+            disabled={optionsBusy}
+            onChange={(event) => markOption('backendSearch', event.target.checked)}
+          />
+          <span>{t('backendSearch')}</span>
+        </label>
+        <p style={optionHintStyle}>{t('backendSearchHint')}</p>
+
+        <label style={optionRowStyle}>
+          <input
+            type="checkbox"
+            checked={optBool(options.statefulResponses, false)}
+            disabled={optionsBusy}
+            onChange={(event) => markOption('statefulResponses', event.target.checked)}
+          />
+          <span>{t('statefulResponses')}</span>
+        </label>
+        <p style={optionHintStyle}>{t('statefulResponsesHint')}</p>
+
+        <label style={optionRowStyle}>
+          <input
+            type="checkbox"
+            checked={optBool(options.imagineTool, true)}
+            disabled={optionsBusy}
+            onChange={(event) => markOption('imagineTool', event.target.checked)}
+          />
+          <span>{t('imagineTool')}</span>
+        </label>
+        <p style={optionHintStyle}>{t('imagineToolHint')}</p>
+
+        <label style={optionRowStyle}>
+          <span>{t('nestedSearchTools')}</span>
+          <select
+            value={options.nestedSearchTools === undefined ? 'auto' : String(options.nestedSearchTools)}
+            disabled={optionsBusy}
+            onChange={(event) => markOption(
+              'nestedSearchTools',
+              event.target.value === 'auto' ? undefined : event.target.value === 'true',
+            )}
+            style={{ ...optionInputStyle, flex: '0 1 auto' }}
+          >
+            <option value="auto">{t('nestedSearchToolsAuto')}</option>
+            <option value="true">on</option>
+            <option value="false">off</option>
+          </select>
+        </label>
+        <p style={optionHintStyle}>{t('nestedSearchToolsHint')}</p>
+
+        <label style={optionRowStyle}>
+          <span>{t('searchModel')}</span>
+          <input
+            type="text"
+            value={String(options.searchModel ?? '')}
+            placeholder="grok-build-0.1"
+            disabled={optionsBusy}
+            onChange={(event) => markOption('searchModel', event.target.value.trim() === '' ? undefined : event.target.value)}
+            style={optionInputStyle}
+          />
+        </label>
+        <p style={optionHintStyle}>{t('searchModelHint')}</p>
+
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14 }}>
+          <label style={optionRowStyle}>
+            <span>{t('searchMaxResults')}</span>
+            <input
+              type="number"
+              min={1}
+              value={String(options.searchMaxResults ?? '')}
+              placeholder="8"
+              disabled={optionsBusy}
+              onChange={(event) => markOption('searchMaxResults', event.target.value === '' ? undefined : Number(event.target.value))}
+              style={optionInputStyle}
+            />
+          </label>
+          <label style={optionRowStyle}>
+            <span>{t('webSearchTimeoutMs')}</span>
+            <input
+              type="number"
+              min={1000}
+              value={String(options.webSearchTimeoutMs ?? '')}
+              placeholder="60000"
+              disabled={optionsBusy}
+              onChange={(event) => markOption('webSearchTimeoutMs', event.target.value === '' ? undefined : Number(event.target.value))}
+              style={optionInputStyle}
+            />
+          </label>
+          <label style={optionRowStyle}>
+            <span>{t('xSearchTimeoutMs')}</span>
+            <input
+              type="number"
+              min={1000}
+              value={String(options.xSearchTimeoutMs ?? '')}
+              placeholder="120000"
+              disabled={optionsBusy}
+              onChange={(event) => markOption('xSearchTimeoutMs', event.target.value === '' ? undefined : Number(event.target.value))}
+              style={optionInputStyle}
+            />
+          </label>
+        </div>
+        <p style={optionHintStyle}>{t('searchMaxResultsHint')} · {t('webSearchTimeoutHint')} · {t('xSearchTimeoutHint')}</p>
+
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+          <button type="button" style={buttonStyle} disabled={optionsBusy || optionsDirty.size === 0} onClick={() => { void saveOptions() }}>
+            {optionsBusy ? t('working') : t('optionsSave')}
+          </button>
+          {optionsFeedback === 'saved'
+            ? <p style={{ ...bodyStyle, margin: 0, color: 'var(--dsw-alias-state-success-primary, #22a06b)' }}>{t('optionsSaved')}</p>
+            : null}
+          {optionsFeedback === 'error' ? <p style={{ ...errorStyle, margin: 0 }}>{t('optionsError')}</p> : null}
+        </div>
       </div>
     </section>
   )

@@ -253,6 +253,37 @@ declare function xaiOAuthAuthStatus(store?: XaiOAuthCredentialStore): Promise<Xa
 declare function loginXaiOAuthSession(interaction: AuthInteraction, session: XaiOAuthSession): Promise<void>;
 declare function importXaiOAuthSession(session: XaiOAuthSession, filename?: string): Promise<void>;
 //#endregion
+//#region src/options.d.ts
+/**
+ * Plugin-owned runtime options UI: persisted overrides for the optional
+ * Config keys. Precedence per key: explicit stored value (settings page) >
+ * Cordis config value > schema default. Keys left untouched keep following
+ * the bundle/Cordis defaults — the file only holds deliberate choices.
+ * @module dsh-grok-kit/options
+ */
+interface StoredPluginOptions {
+  backendSearch?: boolean;
+  nestedSearchTools?: boolean;
+  statefulResponses?: boolean;
+  imagineTool?: boolean;
+  searchModel?: string;
+  searchMaxResults?: number;
+  webSearchTimeoutMs?: number;
+  xSearchTimeoutMs?: number;
+}
+/**
+ * Fail-closed parsing: unknown keys are dropped, wrong types are dropped,
+ * out-of-range numbers are dropped. Never throws.
+ */
+declare function sanitizeStoredOptions(value: unknown): StoredPluginOptions;
+declare function optionsPath(dshHome?: string): string;
+/** Read the stored overrides; corrupt/missing files yield empty options. */
+declare function readStoredOptions(): StoredPluginOptions;
+/** Persist the whole overrides document (merge decisions happen in the UI). */
+declare function writeStoredOptions(options: StoredPluginOptions): Promise<void>;
+/** Apply stored overrides on top of the Cordis config (explicit keys win). */
+declare function mergePluginOptions(config: Record<string, unknown>, stored: StoredPluginOptions): Record<string, unknown>;
+//#endregion
 //#region src/auth-routes.d.ts
 declare const XAI_OAUTH_AUTH_STATUS_PATH = "/plugins/dsh-grok-kit/auth/status";
 declare const XAI_OAUTH_AUTH_LOGIN_PATH = "/plugins/dsh-grok-kit/auth/login";
@@ -260,6 +291,7 @@ declare const XAI_OAUTH_AUTH_IMPORT_PATH = "/plugins/dsh-grok-kit/auth/import";
 declare const XAI_OAUTH_AUTH_LOGOUT_PATH = "/plugins/dsh-grok-kit/auth/logout";
 declare const XAI_OAUTH_AUTH_MODELS_PATH = "/plugins/dsh-grok-kit/auth/models";
 declare const XAI_OAUTH_AUTH_PROXY_PATH = "/plugins/dsh-grok-kit/auth/proxy";
+declare const XAI_OAUTH_AUTH_OPTIONS_PATH = "/plugins/dsh-grok-kit/auth/options";
 type XaiOAuthWebAuthStatus = {
   status: 'signed-out';
   grokImportAvailable: boolean;
@@ -535,4 +567,4 @@ declare function resolveStatefulResponses(config: Config): boolean;
 /** Register the xai-oauth LLM route, OAuth routes, Imagine, and search wiring. */
 declare function apply(ctx: Context, config: Config): void;
 //#endregion
-export { type CatalogSource, Config, DEFAULT_IMAGINE_MODEL, DEFAULT_SEARCH_MAX_RESULTS, DEFAULT_WEB_SEARCH_TIMEOUT_MS, DEFAULT_XAI_OAUTH_MODEL, DEFAULT_XAI_SEARCH_MODEL, DEFAULT_X_SEARCH_TIMEOUT_MS, GROK_46_MODEL, GROK_XAI_CLIENT_ID, GROK_XAI_SLOT_KEY, type GrokImportProbe, type LoginChallenge, PREFERRED_XAI_OAUTH_MODEL, type ResponseChainRecord, type ResponseChainStore, type SearchRequest, type SearchResult, type SearchSource, XAI_BUILTIN_SEARCH_FUNCTION_NAMES, XAI_IMAGES_URL, XAI_MODELS_URL, XAI_OAUTH_AUTH_FILENAME, XAI_OAUTH_AUTH_IMPORT_PATH, XAI_OAUTH_AUTH_LOGIN_PATH, XAI_OAUTH_AUTH_LOGOUT_PATH, XAI_OAUTH_AUTH_MODELS_PATH, XAI_OAUTH_AUTH_PROXY_PATH, XAI_OAUTH_AUTH_STATUS_PATH, XAI_OAUTH_ROUTE, XAI_OAUTH_STREAM_IDLE_TIMEOUT_MS, XAI_PI_PROVIDER, XAI_RESPONSES_URL, XAI_SERVER_X_SEARCH_REJECT_NAMES, type XaiOAuthAuthStatus, XaiOAuthCredentialStore, XaiOAuthSearchError, XaiOAuthSearchProvider, XaiOAuthSession, type XaiOAuthTokenSource, type XaiOAuthWebAuthStatus, type XaiResponsesWrapOptions, type XaiSearchTool, apply, applyGrokImagineTool, applyGrokSearchTools, applyStatefulContinuation, applyXaiProxy, applyXaiResponsesPayload, applyXaiServerSearchRejectTools, buildSearchToolPayload, capSources, catalogModels, clientInputDelta, createFileResponseChainStore, createMemoryResponseChainStore, createXaiOAuthAdapter, createXaiOAuthSearchTokenSource, extractClientInputItems, extractModelIds, fetchLiveModelIds, filterSelectedChatModelIds, fingerprintInputItem, formatGrokSearchOutput, grokAuthPath, imagineModelId, importGrokAuth, importXaiOAuthFromGrok, importXaiOAuthSession, includeForSearchTool, inject, installXaiFetchHook, isClientOriginatedInputItem, isComposerChatModel, isGrokAuthDocument, isGrokAuthPath, isPreviousResponseError, isToolOutputInputItem, isUserInputItem, lockPathForAuthFile, loginXaiOAuth, loginXaiOAuthSession, logoutXaiOAuth, mapXaiSearchResponse, materializeLiveModel, mergeLiveCatalog, name, parseGrokAuthDocument, parseGrokWebSearchArgs, parseXSearchArgs, preferredXaiOAuthModel, preferredXaiOAuthModelFrom, probeGrokAuth, readStoredProxyUrl, registerXaiOAuthAuthRoutes, removeGrokAuthSlot, resolveNestedSearchTools, resolveStatefulResponses, resolveXaiOAuthStorePath, resolveXaiProxyUrl, safeMessage, setXaiProxyUrl, sniffImageMediaType, wrapXaiResponsesProvider, writeGrokAuthDocument, writeStoredProxyUrl, xaiOAuthAuthPath, xaiOAuthAuthStatus, xaiProxyPath };
+export { type CatalogSource, Config, DEFAULT_IMAGINE_MODEL, DEFAULT_SEARCH_MAX_RESULTS, DEFAULT_WEB_SEARCH_TIMEOUT_MS, DEFAULT_XAI_OAUTH_MODEL, DEFAULT_XAI_SEARCH_MODEL, DEFAULT_X_SEARCH_TIMEOUT_MS, GROK_46_MODEL, GROK_XAI_CLIENT_ID, GROK_XAI_SLOT_KEY, type GrokImportProbe, type LoginChallenge, PREFERRED_XAI_OAUTH_MODEL, type ResponseChainRecord, type ResponseChainStore, type SearchRequest, type SearchResult, type SearchSource, type StoredPluginOptions, XAI_BUILTIN_SEARCH_FUNCTION_NAMES, XAI_IMAGES_URL, XAI_MODELS_URL, XAI_OAUTH_AUTH_FILENAME, XAI_OAUTH_AUTH_IMPORT_PATH, XAI_OAUTH_AUTH_LOGIN_PATH, XAI_OAUTH_AUTH_LOGOUT_PATH, XAI_OAUTH_AUTH_MODELS_PATH, XAI_OAUTH_AUTH_OPTIONS_PATH, XAI_OAUTH_AUTH_PROXY_PATH, XAI_OAUTH_AUTH_STATUS_PATH, XAI_OAUTH_ROUTE, XAI_OAUTH_STREAM_IDLE_TIMEOUT_MS, XAI_PI_PROVIDER, XAI_RESPONSES_URL, XAI_SERVER_X_SEARCH_REJECT_NAMES, type XaiOAuthAuthStatus, XaiOAuthCredentialStore, XaiOAuthSearchError, XaiOAuthSearchProvider, XaiOAuthSession, type XaiOAuthTokenSource, type XaiOAuthWebAuthStatus, type XaiResponsesWrapOptions, type XaiSearchTool, apply, applyGrokImagineTool, applyGrokSearchTools, applyStatefulContinuation, applyXaiProxy, applyXaiResponsesPayload, applyXaiServerSearchRejectTools, buildSearchToolPayload, capSources, catalogModels, clientInputDelta, createFileResponseChainStore, createMemoryResponseChainStore, createXaiOAuthAdapter, createXaiOAuthSearchTokenSource, extractClientInputItems, extractModelIds, fetchLiveModelIds, filterSelectedChatModelIds, fingerprintInputItem, formatGrokSearchOutput, grokAuthPath, imagineModelId, importGrokAuth, importXaiOAuthFromGrok, importXaiOAuthSession, includeForSearchTool, inject, installXaiFetchHook, isClientOriginatedInputItem, isComposerChatModel, isGrokAuthDocument, isGrokAuthPath, isPreviousResponseError, isToolOutputInputItem, isUserInputItem, lockPathForAuthFile, loginXaiOAuth, loginXaiOAuthSession, logoutXaiOAuth, mapXaiSearchResponse, materializeLiveModel, mergeLiveCatalog, mergePluginOptions, name, optionsPath, parseGrokAuthDocument, parseGrokWebSearchArgs, parseXSearchArgs, preferredXaiOAuthModel, preferredXaiOAuthModelFrom, probeGrokAuth, readStoredOptions, readStoredProxyUrl, registerXaiOAuthAuthRoutes, removeGrokAuthSlot, resolveNestedSearchTools, resolveStatefulResponses, resolveXaiOAuthStorePath, resolveXaiProxyUrl, safeMessage, sanitizeStoredOptions, setXaiProxyUrl, sniffImageMediaType, wrapXaiResponsesProvider, writeGrokAuthDocument, writeStoredOptions, writeStoredProxyUrl, xaiOAuthAuthPath, xaiOAuthAuthStatus, xaiProxyPath };

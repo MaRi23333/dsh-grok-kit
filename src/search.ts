@@ -28,7 +28,7 @@ export const XAI_RESPONSES_URL = 'https://api.x.ai/v1/responses'
 /** OAuth-friendly Grok Build model; override via config `searchModel`. */
 export const DEFAULT_XAI_SEARCH_MODEL = 'grok-build-0.1'
 
-const USER_AGENT = 'dsh-grok-kit/0.1.4'
+const USER_AGENT = 'dsh-grok-kit/0.1.5'
 const ERROR_BODY_LIMIT = 300
 
 export interface XaiOAuthSearchProviderOptions {

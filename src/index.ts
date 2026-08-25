@@ -29,6 +29,7 @@ import {
 import { createFileResponseChainStore } from './response-chain.ts'
 import { XaiOAuthSession } from './session.ts'
 import { XaiOAuthCredentialStore } from './store.ts'
+import { mergePluginOptions, readStoredOptions } from './options.ts'
 import { applyGrokImagineTool } from './imagine.ts'
 import {
   applyGrokSearchTools,
@@ -54,6 +55,7 @@ export {
   XAI_OAUTH_AUTH_LOGIN_PATH,
   XAI_OAUTH_AUTH_LOGOUT_PATH,
   XAI_OAUTH_AUTH_MODELS_PATH,
+  XAI_OAUTH_AUTH_OPTIONS_PATH,
   XAI_OAUTH_AUTH_PROXY_PATH,
   XAI_OAUTH_AUTH_STATUS_PATH,
 } from './auth-routes.ts'
@@ -128,6 +130,14 @@ export {
   XaiOAuthSearchProvider,
 } from './search.ts'
 export type { SearchRequest, SearchResult, SearchSource, XaiOAuthTokenSource, XaiSearchTool } from './search.ts'
+export {
+  mergePluginOptions,
+  optionsPath,
+  readStoredOptions,
+  sanitizeStoredOptions,
+  writeStoredOptions,
+} from './options.ts'
+export type { StoredPluginOptions } from './options.ts'
 export {
   applyStatefulContinuation,
   clientInputDelta,
@@ -220,12 +230,18 @@ export function resolveStatefulResponses(config: Config): boolean {
 
 /** Register the xai-oauth LLM route, OAuth routes, Imagine, and search wiring. */
 export function apply(ctx: Context, config: Config): void {
+  // UI-stored overrides win per key over the Cordis config (which is where
+  // the bundle's composition defaults live); untouched keys follow it.
+  const effectiveConfig: Config = mergePluginOptions(
+    config as unknown as Record<string, unknown>,
+    readStoredOptions(),
+  ) as unknown as Config
   // Proxy hook FIRST: every later x.ai request (OAuth, models, chat, search)
   // goes through globalThis.fetch and is routed by the hook. Registered as an
   // effect so the hook is restored and the ProxyAgent closed on dispose.
   ctx.effect(() => {
     const dispose = installXaiFetchHook()
-    applyXaiProxy(config.proxyUrl)
+    applyXaiProxy(effectiveConfig.proxyUrl)
     return dispose
   }, 'dsh-grok-kit: xAI proxy hook')
 
@@ -233,8 +249,8 @@ export function apply(ctx: Context, config: Config): void {
     ctx.emit('llm/adapters-updated')
   })
   const tokens = createXaiOAuthSearchTokenSource(session)
-  const { backendSearch, nestedSearchTools } = resolveNestedSearchTools(config)
-  const statefulResponses = resolveStatefulResponses(config)
+  const { backendSearch, nestedSearchTools } = resolveNestedSearchTools(effectiveConfig)
+  const statefulResponses = resolveStatefulResponses(effectiveConfig)
   session.setWrapOptions({
     backendSearch,
     retry401: true,
@@ -265,23 +281,23 @@ export function apply(ctx: Context, config: Config): void {
   }
   ctx.inject(['webServer'], webCtx => registerXaiOAuthAuthRoutes(webCtx, session))
 
-  const searchModel = config.searchModel ?? DEFAULT_XAI_SEARCH_MODEL
+  const searchModel = effectiveConfig.searchModel ?? DEFAULT_XAI_SEARCH_MODEL
   if (nestedSearchTools) {
     const web = new XaiOAuthSearchProvider(tokens, 'web_search', { model: searchModel })
     const x = new XaiOAuthSearchProvider(tokens, 'x_search', { model: searchModel })
     ctx.inject(['tools', 'systemPrompt'], toolCtx => applyGrokSearchTools(toolCtx, {
       web,
       x,
-      maxResults: config.searchMaxResults ?? DEFAULT_SEARCH_MAX_RESULTS,
-      webTimeoutMs: config.webSearchTimeoutMs ?? DEFAULT_WEB_SEARCH_TIMEOUT_MS,
-      xTimeoutMs: config.xSearchTimeoutMs ?? DEFAULT_X_SEARCH_TIMEOUT_MS,
+      maxResults: effectiveConfig.searchMaxResults ?? DEFAULT_SEARCH_MAX_RESULTS,
+      webTimeoutMs: effectiveConfig.webSearchTimeoutMs ?? DEFAULT_WEB_SEARCH_TIMEOUT_MS,
+      xTimeoutMs: effectiveConfig.xSearchTimeoutMs ?? DEFAULT_X_SEARCH_TIMEOUT_MS,
       backendSearch,
     }))
   }
   if (backendSearch) {
     ctx.inject(['tools', 'systemPrompt'], toolCtx => applyXaiServerSearchRejectTools(toolCtx))
   }
-  if (config.imagineTool !== false) {
+  if (effectiveConfig.imagineTool !== false) {
     ctx.inject(['tools'], toolCtx => applyGrokImagineTool(toolCtx, {
       tokens,
       session,

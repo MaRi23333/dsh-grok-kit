@@ -132,6 +132,8 @@ dsh plugin --profile web add github:MaRi23333/dsh-grok-kit#91266c116dd6be086cb91
 
 本 bundle 的组合默认值来自 `cordis.patch.yml`。手工拆分或重组配置时，可用 `dsh --profile web --dump-config` 核对最终值。
 
+设置页 → xAI Grok →「搜索与功能选项」也能显式覆盖上表中的搜索/功能键（保存后重启生效；未修改的键继续跟随组合默认值，不会固化）。`proxyUrl` 例外：设置页保存即生效。
+
 ## 登录文件、代理与安全边界
 
 - 优先使用 `~/.grok/auth.json`，与 Grok CLI 原地共用同一份 xAI 凭据；登录和刷新都会写回该文件，而不是只做一次性导入；在设置页退出也会让 Grok CLI 退出
