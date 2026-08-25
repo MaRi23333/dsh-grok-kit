@@ -8,6 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/MaRi23333/dsh-grok-kit/actions/workflows/ci.yml"><img src="https://github.com/MaRi23333/dsh-grok-kit/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://www.npmjs.com/package/dsh-grok-kit"><img src="https://img.shields.io/npm/v/dsh-grok-kit.svg" alt="npm version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-4d6bfe.svg" alt="Apache-2.0"></a>
   <img src="https://img.shields.io/badge/DeepSeek%20Harness-0.1.1--rc.2%2B-4d6bfe" alt="DeepSeek Harness 0.1.1-rc.2+">
   <img src="https://img.shields.io/badge/status-unofficial%20community%20plugin-7c84a8" alt="Unofficial community plugin">
@@ -76,21 +77,29 @@
 
 ## 安装
 
-推荐固定到公开前已审核的提交，安装到 Web profile：
+推荐从 npm 安装到 Web profile：
 
 ```sh
-dsh plugin --profile web add github:MaRi23333/dsh-grok-kit#1e0892f4086446b7e549c118ab0bd42722ffd773
+dsh plugin --profile web add dsh-grok-kit
 dsh web
 ```
 
 如果 PATH 中没有 `dsh`，可以使用同一个 CLI 包：
 
 ```sh
-npx @deepseek-ai/dsh plugin --profile web add github:MaRi23333/dsh-grok-kit#1e0892f4086446b7e549c118ab0bd42722ffd773
+npx @deepseek-ai/dsh plugin --profile web add dsh-grok-kit
 npx @deepseek-ai/dsh web
 ```
 
-完整 SHA 可让安装结果保持可复现。只有在愿意主动跟随后续 `main` 变化时才移除 `#1e0892f...`；那属于滚动安装，不是稳定推荐。
+如果这个 profile 以前安装的是 GitHub 来源，可先尝试 `dsh plugin --profile web add dsh-grok-kit@latest`；若来源没有切换，先移除旧包再重新添加。
+
+需要固定到可复现的 Git 提交时，可使用：
+
+```sh
+dsh plugin --profile web add github:MaRi23333/dsh-grok-kit#91266c116dd6be086cb91c51e225c1d3d9578562
+```
+
+完整 SHA 会固定安装结果；npm 安装则默认跟随 `latest` 稳定版本。
 
 打开 **设置 → xAI Grok**，完成登录后选择 `xai-oauth / grok-4.6` 或账号当前可见的其他主线 Grok 模型。已经保存在 dsh 设置中的模型仍有更高优先级。
 

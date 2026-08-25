@@ -12,24 +12,36 @@ Idempotent runbook for humans and automation agents.
 
 ## Install into the web profile
 
-Recommended reproducible install from GitHub:
+Install from npm:
 
 ```sh
-dsh plugin --profile web add github:MaRi23333/dsh-grok-kit#1e0892f4086446b7e549c118ab0bd42722ffd773
+dsh plugin --profile web add dsh-grok-kit
 ```
 
-The full SHA is the pre-public audited anchor. Remove it only if you intentionally want a rolling install that follows later changes on `main`; rolling installs are not the stable recommendation.
+From a DeepSeek Harness source checkout, prefix the same command with `pnpm`:
+
+```sh
+pnpm dsh plugin --profile web add dsh-grok-kit
+```
+
+If this profile already has the GitHub source, explicitly request the latest npm release first:
+
+```sh
+dsh plugin --profile web add dsh-grok-kit@latest
+```
+
+If the source does not switch, run `dsh plugin --profile web remove dsh-grok-kit`, then add it again.
+
+For a reproducible install, pin a full Git commit:
+
+```sh
+dsh plugin --profile web add github:MaRi23333/dsh-grok-kit#91266c116dd6be086cb91c51e225c1d3d9578562
+```
 
 A local checkout can be installed by path instead:
 
 ```sh
 dsh plugin --profile web add ./dsh-grok-kit
-```
-
-From a DeepSeek Harness source checkout, prefix with `pnpm`:
-
-```sh
-pnpm dsh plugin --profile web add github:MaRi23333/dsh-grok-kit#1e0892f4086446b7e549c118ab0bd42722ffd773
 ```
 
 This repository ships `lib/`, so a git install does not run build scripts. If you installed an older commit and pnpm still asks for `allowBuilds` / `onlyBuiltDependencies`, put the printed package key in that profile's `pnpm-workspace.yaml` and re-run `add`:

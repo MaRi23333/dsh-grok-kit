@@ -1,8 +1,10 @@
 {
   "name": "dsh-grok-kit",
   "description": "Unofficial community plugin for DeepSeek Harness: use a SuperGrok / X Premium subscription via OAuth, with grok-4.6 chat, fused server-side web/X search, and Imagine",
-  "version": "0.1.2",
-  "private": true,
+  "version": "0.1.3",
+  "publishConfig": {
+    "access": "public"
+  },
   "keywords": [
     "deepseek-harness",
     "dsh",

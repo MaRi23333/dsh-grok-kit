@@ -42,3 +42,16 @@ jobs:
 
       - name: lib/ must match committed artifacts
         run: git diff --exit-code -- lib
+
+      - name: Package contents and CLI mode
+        shell: bash
+        run: |
+          package_file="$(npm pack --ignore-scripts --silent)"
+          package_dir="$RUNNER_TEMP/dsh-grok-kit-package"
+          mkdir -p "$package_dir"
+          tar -xzf "$package_file" -C "$package_dir"
+          test -x "$package_dir/package/lib/bin.js"
+          test -f "$package_dir/package/README.md"
+          test -f "$package_dir/package/README.en.md"
+          test ! -e "$package_dir/package/.github"
+          test ! -e "$package_dir/package/tests"

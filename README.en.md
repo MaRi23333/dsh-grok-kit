@@ -8,6 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/MaRi23333/dsh-grok-kit/actions/workflows/ci.yml"><img src="https://github.com/MaRi23333/dsh-grok-kit/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://www.npmjs.com/package/dsh-grok-kit"><img src="https://img.shields.io/npm/v/dsh-grok-kit.svg" alt="npm version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-4d6bfe.svg" alt="Apache-2.0"></a>
   <img src="https://img.shields.io/badge/DeepSeek%20Harness-0.1.1--rc.2%2B-4d6bfe" alt="DeepSeek Harness 0.1.1-rc.2+">
   <img src="https://img.shields.io/badge/status-unofficial%20community%20plugin-7c84a8" alt="Unofficial community plugin">
@@ -76,21 +77,29 @@ For domain, account, or date filters, disable `backendSearch` or enable `nestedS
 
 ## Install
 
-For a reproducible install, pin the pre-public audited commit in the Web profile:
+Install the npm package into the Web profile:
 
 ```sh
-dsh plugin --profile web add github:MaRi23333/dsh-grok-kit#1e0892f4086446b7e549c118ab0bd42722ffd773
+dsh plugin --profile web add dsh-grok-kit
 dsh web
 ```
 
 If `dsh` is not on PATH, run the same CLI package through `npx`:
 
 ```sh
-npx @deepseek-ai/dsh plugin --profile web add github:MaRi23333/dsh-grok-kit#1e0892f4086446b7e549c118ab0bd42722ffd773
+npx @deepseek-ai/dsh plugin --profile web add dsh-grok-kit
 npx @deepseek-ai/dsh web
 ```
 
-The full SHA keeps the installed source reproducible. Remove `#1e0892f...` only if you intentionally want a rolling install that follows later changes on `main`; rolling installs are not the stable recommendation.
+If this profile previously used the GitHub source, first try `dsh plugin --profile web add dsh-grok-kit@latest`. If the source does not switch, remove the old package and add it again.
+
+For a reproducible Git install, pin a full commit:
+
+```sh
+dsh plugin --profile web add github:MaRi23333/dsh-grok-kit#91266c116dd6be086cb91c51e225c1d3d9578562
+```
+
+The full SHA fixes the installed source; the npm form follows the stable `latest` release by default.
 
 Open **Settings → xAI Grok**, finish sign-in, then choose `xai-oauth / grok-4.6` or another mainline Grok model currently visible to the account. A model already saved in dsh settings still takes precedence.
 
