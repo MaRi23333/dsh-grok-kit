@@ -29,7 +29,7 @@
 - **Search in the main loop:** web and X lookup occurs inside grok-4.6's current Think turn, so reasoning can use newly found material immediately
 - **Continuous multi-turn reasoning:** high effort is the default, with `reasoning.encrypted_content` preserved for the next turn
 - **Sign-in stays in sync with Grok CLI:** the plugin shares and writes back `~/.grok/auth.json` instead of copying once and rotating refresh tokens separately
-- **Imagine with a clean model picker:** `grok_imagine` is enabled by default, while non-chat models stay out of the conversation picker
+- **Imagine with a clean model picker:** `grok_imagine` is enabled by default, while non-chat models stay out of the conversation picker; current DSH builds do not display the generated image directly in the conversation
 
 Supporting behavior includes an xAI-only proxy, forced refresh and one retry on chat 401, atomic credential writes, and diagnostic redaction.
 
@@ -100,7 +100,7 @@ See [INSTALL.md](INSTALL.md) for installation, migration, removal, and troublesh
 
 - The picker shows only mainline Grok chat models; Imagine, video, embedding, build, and code variants are hidden
 - The default grok-4.6 descriptor uses high reasoning and requests `reasoning.encrypted_content` so encrypted reasoning context can be carried into later turns
-- `grok_imagine` is enabled by default; when the host attachment service is available, output enters the session as an image block
+- `grok_imagine` is enabled by default, but current DSH builds cannot display the generated image directly in the conversation. To obtain a normal file, ask the Agent in your prompt to save the result to a specific directory; without a specified directory, the image is stored in the DSH attachment library
 - DSH's native `web_search` remains in the host tool list, but is removed from an xAI payload with backend search enabled to avoid duplicate tool names
 
 The model list comes from the signed-in account's `GET /v1/models` response and is cached locally. Service or model requirements may still require a plugin update; a visible model id does not imply that every capability is available to the account.

@@ -77,7 +77,7 @@ Web UI：
 
 嵌套的 `grok_web_search` / `x_search`（再开一轮 `grok-build-0.1`）**默认不注册**。只有需要 `allowed_domains` / 账号/日期过滤，或关掉 `backendSearch` 当回退时，才设 `nestedSearchTools: true`。主请求 403 会让整轮聊天失败——在插件配置里设 `backendSearch: false`。
 
-`grok_imagine` 默认打开。
+`grok_imagine` 默认打开。当前 DSH 还不能把生成图直接显示在对话中；需要直接取得文件时，请让 Agent 把图片保存到指定目录。未指定目录时，图片会保存到 DSH 附件库。
 
 ## 代理
 

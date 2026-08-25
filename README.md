@@ -29,7 +29,7 @@
 - **搜索融入主循环：** 网页与 X 检索发生在 grok-4.6 的同一轮 Think 中，推理可以直接使用刚搜到的材料
 - **多轮 reasoning 连续：** 默认使用 high effort，并保留 `reasoning.encrypted_content`，让后续回合能够带回加密推理上下文
 - **登录状态与 Grok CLI 同步：** 直接共用并回写 `~/.grok/auth.json`，不是只复制一次后各自轮换 refresh token
-- **Imagine 与干净的模型选择器：** `grok_imagine` 默认开启，非聊天模型不会混进对话模型列表
+- **Imagine 与干净的模型选择器：** `grok_imagine` 默认开启，非聊天模型不会混进对话模型列表；当前 DSH 不会把生成图直接显示在对话中
 
 此外还包括 xAI 专用代理、聊天 401 强制刷新重试、凭据原子写入与诊断脱敏等支撑能力。
 
@@ -100,7 +100,7 @@ npx @deepseek-ai/dsh web
 
 - 模型选择器只展示主线 Grok 聊天模型；Imagine、video、embedding、build/code 变体会被隐藏
 - 默认 grok-4.6 描述符使用 high reasoning，并请求 `reasoning.encrypted_content`，以便后续回合带回加密推理上下文
-- `grok_imagine` 默认开启；宿主支持附件服务时，结果以图片块进入会话
+- `grok_imagine` 默认开启，但当前 DSH 还不能把生成图直接显示在对话中。需要直接取得文件时，请在提示中让 Agent 把生成结果保存到指定目录；未指定目录时，图片会保存到 DSH 附件库
 - dsh 原生 `web_search` 仍保留在宿主工具列表中，但会从启用 backend search 的 xAI payload 中移除，避免工具重名
 
 模型列表来自登录账号的 `GET /v1/models` 结果，并在本地缓存。服务端能力或模型要求发生变化时，仍可能需要更新插件；不会把“模型 id 可见”等同于“所有能力一定可用”。

@@ -77,7 +77,7 @@ This bundle's composition sets `backendSearch: true`. grok-4.6 then mixes xAI se
 
 Nested `grok_web_search` / `x_search` (a second `grok-build-0.1` hop) are **not** registered in this default. Set `nestedSearchTools: true` only if you need `allowed_domains` / handle / date filters, or as a fallback after `backendSearch: false`. A SuperGrok 403 on the chat route is fatal for that turn — set `backendSearch: false` in the plugin config.
 
-`grok_imagine` is on by default.
+`grok_imagine` is on by default. Current DSH builds cannot display the generated image directly in the conversation. Ask the Agent to save it to a specific directory when you need a normal file; without a specified directory, it is stored in the DSH attachment library.
 
 ## Proxy
 
