@@ -3,9 +3,11 @@ import { createAssistantMessageEventStream } from '@earendil-works/pi-ai'
 import type { AssistantMessageEvent, Model, Provider } from '@earendil-works/pi-ai'
 import {
   applyXaiResponsesPayload,
+  isPreviousResponseError,
   wrapXaiResponsesProvider,
   XAI_SERVER_X_SEARCH_REJECT_NAMES,
 } from '../src/responses.ts'
+import { createMemoryResponseChainStore, fingerprintInputItem } from '../src/response-chain.ts'
 import { GROK_46_MODEL } from '../src/catalog.ts'
 import type { XaiOAuthTokenSource } from '../src/token-source.ts'
 
@@ -212,3 +214,178 @@ describe('reject names', () => {
     expect(XAI_SERVER_X_SEARCH_REJECT_NAMES).toContain('x_keyword_search')
   })
 })
+
+describe('stateful continuation wrap', () => {
+  it('stores the first turn then sends only the new user item', async () => {
+    const payloads: unknown[] = []
+    const inner: Provider = {
+      id: 'xai-oauth',
+      name: 'x',
+      auth: { apiKey: { name: 't', resolve: async () => undefined } },
+      getModels: () => [],
+      stream: () => createAssistantMessageEventStream(),
+      streamSimple(_model, _ctx, options) {
+        const stream = createAssistantMessageEventStream()
+        const input = payloads.length === 0
+          ? [{ role: 'user', content: 'q1' }]
+          : [
+            { role: 'user', content: 'q1' },
+            { type: 'reasoning', encrypted_content: 'sig' },
+            { type: 'message', role: 'assistant', content: [] },
+            { role: 'user', content: 'q2' },
+          ]
+        void Promise.resolve(options?.onPayload?.({ model: 'grok-4.6', input }, GROK_46_MODEL)).then(result => {
+          payloads.push(result ?? { input })
+          const done = doneEvent()
+          if (done.type === 'done') {
+            done.message.responseId = payloads.length === 1 ? 'resp-1' : 'resp-2'
+            stream.push({ type: 'start', partial: done.message })
+            stream.push(done)
+          }
+          stream.end()
+        })
+        return stream
+      },
+    }
+    const wrapped = wrapXaiResponsesProvider(inner, {
+      backendSearch: true,
+      retry401: false,
+      statefulResponses: true,
+      chainStore: createMemoryResponseChainStore(),
+    })
+    const consume = async () => {
+      for await (const event of wrapped.streamSimple(
+        GROK_46_MODEL as Model<'openai-responses'>,
+        { messages: [] },
+        { sessionId: 'sess-1' },
+      )) {
+        void event
+      }
+    }
+    await consume()
+    await consume()
+    const first = payloads[0] as Record<string, unknown>
+    const second = payloads[1] as Record<string, unknown>
+    expect(first['store']).toBe(true)
+    expect(first['previous_response_id']).toBeUndefined()
+    expect(second['store']).toBe(true)
+    expect(second['previous_response_id']).toBe('resp-1')
+    expect(second['input']).toEqual([{ role: 'user', content: 'q2' }])
+  })
+
+  it('does not set previous_response_id for a same-turn tool follow-up', async () => {
+    const payloads: unknown[] = []
+    const store = createMemoryResponseChainStore()
+    const inner: Provider = {
+      id: 'xai-oauth',
+      name: 'x',
+      auth: { apiKey: { name: 't', resolve: async () => undefined } },
+      getModels: () => [],
+      stream: () => createAssistantMessageEventStream(),
+      streamSimple(_model, _ctx, options) {
+        const stream = createAssistantMessageEventStream()
+        const input = payloads.length === 0
+          ? [{ role: 'user', content: 'q1' }]
+          : [
+            { role: 'user', content: 'q1' },
+            { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: 'writeup' }] },
+            { type: 'function_call', name: 'x_keyword_search' },
+            { type: 'function_call_output', call_id: 'c1', output: 'already ran' },
+          ]
+        void Promise.resolve(options?.onPayload?.({ model: 'grok-4.6', input }, GROK_46_MODEL)).then(result => {
+          payloads.push(result ?? { input })
+          const done = doneEvent()
+          if (done.type === 'done') {
+            done.message.responseId = `resp-${payloads.length}`
+            stream.push({ type: 'start', partial: done.message })
+            stream.push(done)
+          }
+          stream.end()
+        })
+        return stream
+      },
+    }
+    const wrapped = wrapXaiResponsesProvider(inner, {
+      backendSearch: true,
+      retry401: false,
+      statefulResponses: true,
+      chainStore: store,
+    })
+    for (let index = 0; index < 2; index += 1) {
+      for await (const event of wrapped.streamSimple(
+        GROK_46_MODEL as Model<'openai-responses'>,
+        { messages: [] },
+        { sessionId: 'sess-tool' },
+      )) {
+        void event
+      }
+    }
+    expect((payloads[1] as Record<string, unknown>)['previous_response_id']).toBeUndefined()
+    expect((payloads[1] as Record<string, unknown>)['store']).toBe(true)
+  })
+
+  it('retries once without previous_response_id after a 400 pairing error', async () => {
+    const payloads: unknown[] = []
+    let calls = 0
+    const store = createMemoryResponseChainStore()
+    store.set('sess-1', {
+      responseId: 'stale',
+      fingerprints: [fingerprintInputItem({ role: 'user', content: 'q1' })],
+      model: 'grok-4.6',
+      updatedAt: 1,
+      stopReason: 'stop',
+    })
+    const inner: Provider = {
+      id: 'xai-oauth',
+      name: 'x',
+      auth: { apiKey: { name: 't', resolve: async () => undefined } },
+      getModels: () => [],
+      stream: () => createAssistantMessageEventStream(),
+      streamSimple(_model, _ctx, options) {
+        const stream = createAssistantMessageEventStream()
+        void Promise.resolve(options?.onPayload?.({
+          model: 'grok-4.6',
+          input: [{ role: 'user', content: 'q1' }, { role: 'user', content: 'q2' }],
+        }, GROK_46_MODEL)).then(result => {
+          payloads.push(result)
+          calls += 1
+          const usedPrevious = typeof (result as { previous_response_id?: string } | undefined)?.previous_response_id === 'string'
+          queueMicrotask(() => {
+            if (usedPrevious) {
+              stream.push(errorEvent('OpenAI API error (400): previous_response_id not found'))
+            } else {
+              const done = doneEvent()
+              if (done.type === 'done') {
+                done.message.responseId = 'resp-fresh'
+                stream.push({ type: 'start', partial: done.message })
+                stream.push(done)
+              }
+            }
+            stream.end()
+          })
+        })
+        return stream
+      },
+    }
+    const wrapped = wrapXaiResponsesProvider(inner, {
+      backendSearch: true,
+      retry401: false,
+      statefulResponses: true,
+      chainStore: store,
+    })
+    const events: AssistantMessageEvent[] = []
+    for await (const event of wrapped.streamSimple(
+      GROK_46_MODEL as Model<'openai-responses'>,
+      { messages: [] },
+      { sessionId: 'sess-1' },
+    )) {
+      events.push(event)
+    }
+    expect(calls).toBe(2)
+    expect((payloads[0] as Record<string, unknown>)['previous_response_id']).toBe('stale')
+    expect((payloads[1] as Record<string, unknown>)['previous_response_id']).toBeUndefined()
+    expect(events.some(event => event.type === 'done')).toBe(true)
+    expect(isPreviousResponseError(errorEvent('OpenAI API error (400): previous_response_id not found'))).toBe(true)
+  })
+})
+

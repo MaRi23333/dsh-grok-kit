@@ -26,6 +26,7 @@ import {
   DEFAULT_XAI_SEARCH_MODEL,
   XaiOAuthSearchProvider,
 } from './search.ts'
+import { createFileResponseChainStore } from './response-chain.ts'
 import { XaiOAuthSession } from './session.ts'
 import { XaiOAuthCredentialStore } from './store.ts'
 import { applyGrokImagineTool } from './imagine.ts'
@@ -100,6 +101,7 @@ export {
 } from './imagine.ts'
 export {
   applyXaiResponsesPayload,
+  isPreviousResponseError,
   wrapXaiResponsesProvider,
   XAI_BUILTIN_SEARCH_FUNCTION_NAMES,
   XAI_SERVER_X_SEARCH_REJECT_NAMES,
@@ -126,6 +128,18 @@ export {
   XaiOAuthSearchProvider,
 } from './search.ts'
 export type { SearchRequest, SearchResult, SearchSource, XaiOAuthTokenSource, XaiSearchTool } from './search.ts'
+export {
+  applyStatefulContinuation,
+  clientInputDelta,
+  createFileResponseChainStore,
+  createMemoryResponseChainStore,
+  extractClientInputItems,
+  fingerprintInputItem,
+  isClientOriginatedInputItem,
+  isToolOutputInputItem,
+  isUserInputItem,
+} from './response-chain.ts'
+export type { ResponseChainRecord, ResponseChainStore } from './response-chain.ts'
 export { XaiOAuthSession } from './session.ts'
 export { XaiOAuthCredentialStore, lockPathForAuthFile, resolveXaiOAuthStorePath, xaiOAuthAuthPath } from './store.ts'
 export {
@@ -172,6 +186,11 @@ export interface Config {
    * `!backendSearch` at apply() time.
    */
   nestedSearchTools?: boolean
+  /**
+   * store:true + previous_response_id continuation. No schema default:
+   * omit means false. Do not enable while DSH is still in a toolUse step.
+   */
+  statefulResponses?: boolean
   /** Register grok_imagine. Default true. */
   imagineTool?: boolean
 }
@@ -184,6 +203,7 @@ export const Config: z<Config> = z.object({
   xSearchTimeoutMs: z.number().default(DEFAULT_X_SEARCH_TIMEOUT_MS),
   backendSearch: z.boolean().default(false),
   nestedSearchTools: z.boolean(),
+  statefulResponses: z.boolean(),
   imagineTool: z.boolean().default(true),
 })
 
@@ -191,6 +211,11 @@ export const Config: z<Config> = z.object({
 export function resolveNestedSearchTools(config: Config): { backendSearch: boolean; nestedSearchTools: boolean } {
   const backendSearch = config.backendSearch ?? false
   return { backendSearch, nestedSearchTools: config.nestedSearchTools ?? !backendSearch }
+}
+
+/** Opt-in only. Default off: DSH multi-step tool loops reprint search text if chained. */
+export function resolveStatefulResponses(config: Config): boolean {
+  return config.statefulResponses ?? false
 }
 
 /** Register the xai-oauth LLM route, OAuth routes, Imagine, and search wiring. */
@@ -209,7 +234,14 @@ export function apply(ctx: Context, config: Config): void {
   })
   const tokens = createXaiOAuthSearchTokenSource(session)
   const { backendSearch, nestedSearchTools } = resolveNestedSearchTools(config)
-  session.setWrapOptions({ backendSearch, retry401: true, tokenSource: tokens })
+  const statefulResponses = resolveStatefulResponses(config)
+  session.setWrapOptions({
+    backendSearch,
+    retry401: true,
+    tokenSource: tokens,
+    statefulResponses,
+    ...statefulResponses ? { chainStore: createFileResponseChainStore() } : {},
+  })
 
   void session.loadCachedCatalog()
     .then(() => session.refreshLiveCatalog())

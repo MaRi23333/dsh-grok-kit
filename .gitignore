@@ -18,3 +18,7 @@ docs/
 # Runtime artifacts if imagine runs from this directory
 .dsh-grok-kit/
 *.tsbuildinfo
+
+# Live OAuth probes (read local credentials; never commit output)
+scripts/probe-*.mjs
+scripts/probe-*.json

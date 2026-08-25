@@ -1,7 +1,7 @@
 import z from "@deepseek-ai/schemastery";
 import { HarnessError } from "@deepseek-ai/dsh-llm";
 import { PiAiAdapter } from "@deepseek-ai/dsh-llm-pi-ai";
-import { Api, AuthInteraction, Credential, CredentialInfo, CredentialStore, Model, MutableModels, OAuthCredential, Provider } from "@earendil-works/pi-ai";
+import { Api, AssistantMessageEvent, AuthInteraction, Credential, CredentialInfo, CredentialStore, Model, MutableModels, OAuthCredential, Provider } from "@earendil-works/pi-ai";
 import { Context } from "@deepseek-ai/cordis";
 import { AttachmentStore, ImageMediaType } from "@deepseek-ai/dsh-attachment";
 //#region src/catalog.d.ts
@@ -58,6 +58,52 @@ interface XaiOAuthTokenSource {
  */
 declare function createXaiOAuthSearchTokenSource(session: XaiOAuthSession): XaiOAuthTokenSource;
 //#endregion
+//#region src/response-chain.d.ts
+/**
+ * Client-side bookkeeping for xAI stateful Responses (store + previous_response_id).
+ * Fingerprints are hashes of client-originated input items; the search corpus
+ * itself never lives here.
+ * @module dsh-grok-kit/response-chain
+ */
+interface ResponseChainRecord {
+  responseId: string;
+  fingerprints: string[];
+  model: string;
+  updatedAt: number;
+  /** Only `stop` may continue. `toolUse` means DSH will send tool results next. */
+  stopReason: string;
+}
+interface ResponseChainStore {
+  get(sessionId: string): ResponseChainRecord | undefined;
+  set(sessionId: string, record: ResponseChainRecord): void;
+  delete(sessionId: string): void;
+}
+declare function isToolOutputInputItem(item: unknown): boolean;
+declare function isUserInputItem(item: unknown): boolean;
+/** User / system messages and local tool results — not model output. */
+declare function isClientOriginatedInputItem(item: unknown): boolean;
+declare function extractClientInputItems(input: unknown): unknown[];
+declare function fingerprintInputItem(item: unknown): string;
+declare function clientInputDelta(previousFingerprints: readonly string[], currentItems: readonly unknown[]): {
+  kind: 'reset';
+} | {
+  kind: 'delta';
+  items: unknown[];
+};
+declare function applyStatefulContinuation(payload: Record<string, unknown>, options: {
+  sessionId: string;
+  modelId: string;
+  store: ResponseChainStore;
+  forceFullReplay?: boolean;
+}): {
+  payload: Record<string, unknown>;
+  fingerprints: string[];
+  usedPrevious: boolean;
+};
+/** File-backed chain store. Writes are fire-and-forget after the in-memory map updates. */
+declare function createFileResponseChainStore(dshHome?: string): ResponseChainStore;
+declare function createMemoryResponseChainStore(initial?: Record<string, ResponseChainRecord>): ResponseChainStore;
+//#endregion
 //#region src/responses.d.ts
 declare const XAI_SERVER_X_SEARCH_REJECT_NAMES: readonly ["x_keyword_search", "x_semantic_search", "x_user_search", "x_thread_fetch"];
 /**
@@ -74,7 +120,14 @@ interface XaiResponsesWrapOptions {
   tokenSource?: XaiOAuthTokenSource;
   /** Set by wrap from streamSimple options.reasoning === "off" before inner mapping. */
   skipDefaultHigh?: boolean;
+  /**
+   * store:true + previous_response_id with only new client items.
+   * Omit / false keeps pi-ai's store:false full replay.
+   */
+  statefulResponses?: boolean;
+  chainStore?: ResponseChainStore;
 }
+declare function isPreviousResponseError(event: AssistantMessageEvent): boolean;
 /**
  * Mutate a Responses payload. Never returns undefined (pi-ai only replaces
  * params when onPayload's result is defined). Completions models get the
@@ -463,6 +516,11 @@ interface Config {
    * `!backendSearch` at apply() time.
    */
   nestedSearchTools?: boolean;
+  /**
+   * store:true + previous_response_id continuation. No schema default:
+   * omit means false. Do not enable while DSH is still in a toolUse step.
+   */
+  statefulResponses?: boolean;
   /** Register grok_imagine. Default true. */
   imagineTool?: boolean;
 }
@@ -472,7 +530,9 @@ declare function resolveNestedSearchTools(config: Config): {
   backendSearch: boolean;
   nestedSearchTools: boolean;
 };
+/** Opt-in only. Default off: DSH multi-step tool loops reprint search text if chained. */
+declare function resolveStatefulResponses(config: Config): boolean;
 /** Register the xai-oauth LLM route, OAuth routes, Imagine, and search wiring. */
 declare function apply(ctx: Context, config: Config): void;
 //#endregion
-export { type CatalogSource, Config, DEFAULT_IMAGINE_MODEL, DEFAULT_SEARCH_MAX_RESULTS, DEFAULT_WEB_SEARCH_TIMEOUT_MS, DEFAULT_XAI_OAUTH_MODEL, DEFAULT_XAI_SEARCH_MODEL, DEFAULT_X_SEARCH_TIMEOUT_MS, GROK_46_MODEL, GROK_XAI_CLIENT_ID, GROK_XAI_SLOT_KEY, type GrokImportProbe, type LoginChallenge, PREFERRED_XAI_OAUTH_MODEL, type SearchRequest, type SearchResult, type SearchSource, XAI_BUILTIN_SEARCH_FUNCTION_NAMES, XAI_IMAGES_URL, XAI_MODELS_URL, XAI_OAUTH_AUTH_FILENAME, XAI_OAUTH_AUTH_IMPORT_PATH, XAI_OAUTH_AUTH_LOGIN_PATH, XAI_OAUTH_AUTH_LOGOUT_PATH, XAI_OAUTH_AUTH_MODELS_PATH, XAI_OAUTH_AUTH_PROXY_PATH, XAI_OAUTH_AUTH_STATUS_PATH, XAI_OAUTH_ROUTE, XAI_OAUTH_STREAM_IDLE_TIMEOUT_MS, XAI_PI_PROVIDER, XAI_RESPONSES_URL, XAI_SERVER_X_SEARCH_REJECT_NAMES, type XaiOAuthAuthStatus, XaiOAuthCredentialStore, XaiOAuthSearchError, XaiOAuthSearchProvider, XaiOAuthSession, type XaiOAuthTokenSource, type XaiOAuthWebAuthStatus, type XaiResponsesWrapOptions, type XaiSearchTool, apply, applyGrokImagineTool, applyGrokSearchTools, applyXaiProxy, applyXaiResponsesPayload, applyXaiServerSearchRejectTools, buildSearchToolPayload, capSources, catalogModels, createXaiOAuthAdapter, createXaiOAuthSearchTokenSource, extractModelIds, fetchLiveModelIds, filterSelectedChatModelIds, formatGrokSearchOutput, grokAuthPath, imagineModelId, importGrokAuth, importXaiOAuthFromGrok, importXaiOAuthSession, includeForSearchTool, inject, installXaiFetchHook, isComposerChatModel, isGrokAuthDocument, isGrokAuthPath, lockPathForAuthFile, loginXaiOAuth, loginXaiOAuthSession, logoutXaiOAuth, mapXaiSearchResponse, materializeLiveModel, mergeLiveCatalog, name, parseGrokAuthDocument, parseGrokWebSearchArgs, parseXSearchArgs, preferredXaiOAuthModel, preferredXaiOAuthModelFrom, probeGrokAuth, readStoredProxyUrl, registerXaiOAuthAuthRoutes, removeGrokAuthSlot, resolveNestedSearchTools, resolveXaiOAuthStorePath, resolveXaiProxyUrl, safeMessage, setXaiProxyUrl, sniffImageMediaType, wrapXaiResponsesProvider, writeGrokAuthDocument, writeStoredProxyUrl, xaiOAuthAuthPath, xaiOAuthAuthStatus, xaiProxyPath };
+export { type CatalogSource, Config, DEFAULT_IMAGINE_MODEL, DEFAULT_SEARCH_MAX_RESULTS, DEFAULT_WEB_SEARCH_TIMEOUT_MS, DEFAULT_XAI_OAUTH_MODEL, DEFAULT_XAI_SEARCH_MODEL, DEFAULT_X_SEARCH_TIMEOUT_MS, GROK_46_MODEL, GROK_XAI_CLIENT_ID, GROK_XAI_SLOT_KEY, type GrokImportProbe, type LoginChallenge, PREFERRED_XAI_OAUTH_MODEL, type ResponseChainRecord, type ResponseChainStore, type SearchRequest, type SearchResult, type SearchSource, XAI_BUILTIN_SEARCH_FUNCTION_NAMES, XAI_IMAGES_URL, XAI_MODELS_URL, XAI_OAUTH_AUTH_FILENAME, XAI_OAUTH_AUTH_IMPORT_PATH, XAI_OAUTH_AUTH_LOGIN_PATH, XAI_OAUTH_AUTH_LOGOUT_PATH, XAI_OAUTH_AUTH_MODELS_PATH, XAI_OAUTH_AUTH_PROXY_PATH, XAI_OAUTH_AUTH_STATUS_PATH, XAI_OAUTH_ROUTE, XAI_OAUTH_STREAM_IDLE_TIMEOUT_MS, XAI_PI_PROVIDER, XAI_RESPONSES_URL, XAI_SERVER_X_SEARCH_REJECT_NAMES, type XaiOAuthAuthStatus, XaiOAuthCredentialStore, XaiOAuthSearchError, XaiOAuthSearchProvider, XaiOAuthSession, type XaiOAuthTokenSource, type XaiOAuthWebAuthStatus, type XaiResponsesWrapOptions, type XaiSearchTool, apply, applyGrokImagineTool, applyGrokSearchTools, applyStatefulContinuation, applyXaiProxy, applyXaiResponsesPayload, applyXaiServerSearchRejectTools, buildSearchToolPayload, capSources, catalogModels, clientInputDelta, createFileResponseChainStore, createMemoryResponseChainStore, createXaiOAuthAdapter, createXaiOAuthSearchTokenSource, extractClientInputItems, extractModelIds, fetchLiveModelIds, filterSelectedChatModelIds, fingerprintInputItem, formatGrokSearchOutput, grokAuthPath, imagineModelId, importGrokAuth, importXaiOAuthFromGrok, importXaiOAuthSession, includeForSearchTool, inject, installXaiFetchHook, isClientOriginatedInputItem, isComposerChatModel, isGrokAuthDocument, isGrokAuthPath, isPreviousResponseError, isToolOutputInputItem, isUserInputItem, lockPathForAuthFile, loginXaiOAuth, loginXaiOAuthSession, logoutXaiOAuth, mapXaiSearchResponse, materializeLiveModel, mergeLiveCatalog, name, parseGrokAuthDocument, parseGrokWebSearchArgs, parseXSearchArgs, preferredXaiOAuthModel, preferredXaiOAuthModelFrom, probeGrokAuth, readStoredProxyUrl, registerXaiOAuthAuthRoutes, removeGrokAuthSlot, resolveNestedSearchTools, resolveStatefulResponses, resolveXaiOAuthStorePath, resolveXaiProxyUrl, safeMessage, setXaiProxyUrl, sniffImageMediaType, wrapXaiResponsesProvider, writeGrokAuthDocument, writeStoredProxyUrl, xaiOAuthAuthPath, xaiOAuthAuthStatus, xaiProxyPath };

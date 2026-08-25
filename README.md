@@ -48,6 +48,8 @@
 
 需要按域名、账号或日期过滤时，可关闭 `backendSearch` 或启用 `nestedSearchTools`，改走独立的 `grok_web_search` / `x_search`。这是可选模式，不是默认路径。
 
+`statefulResponses` 默认关。打开后用 `store: true` + `previous_response_id` 只追加新 user；上一轮若是 `toolUse`（`x_keyword_search` 收尾、bash 等）不会续链，否则会把已经写完的搜索正文再生成一遍。OAuth 探针里 follow-up 能列来源，但 `cached_tokens` 不会变成那次搜索的 10–30 万 KV。
+
 ## 界面与效果
 
 ### 账号、模型与代理
@@ -120,6 +122,7 @@ dsh plugin --profile web add github:MaRi23333/dsh-grok-kit#91266c116dd6be086cb91
 | --- | --- | --- |
 | `backendSearch` | schema 为 `false`；本 bundle 设为 `true` | 在主聊天请求中启用 xAI 服务端网页/X 搜索 |
 | `nestedSearchTools` | 省略时取 `!backendSearch` | 注册独立的 `grok_web_search` / `x_search` |
+| `statefulResponses` | 省略时 `false` | 显式打开才用 `store` + `previous_response_id`；`toolUse` 回合不续链 |
 | `searchModel` | `grok-build-0.1` | 嵌套搜索模式使用的模型 |
 | `searchMaxResults` | `8` | 嵌套搜索返回来源的上限 |
 | `webSearchTimeoutMs` | `60000` | 嵌套网页搜索的协作式超时预算 |

@@ -48,6 +48,8 @@ To let both search systems coexist, DSH's native `web_search` remains in the hos
 
 For domain, account, or date filters, disable `backendSearch` or enable `nestedSearchTools` to use standalone `grok_web_search` / `x_search`. This is an optional mode, not the default path.
 
+`statefulResponses` is off by default. When enabled, the plugin uses `store: true` + `previous_response_id` and appends only new user items. A previous `toolUse` turn (`x_keyword_search` stubs, bash, …) is never continued — otherwise xAI emits a second message that reprints the search writeup. A live OAuth probe could list sources on follow-up, but `cached_tokens` does not become that turn's 100k–300k search KV.
+
 ## Interface and behavior
 
 ### Account, models, and proxy
@@ -120,6 +122,7 @@ The model list comes from the signed-in account's `GET /v1/models` response and 
 | --- | --- | --- |
 | `backendSearch` | schema: `false`; bundle: `true` | Enable xAI server-side web/X search in the main chat request |
 | `nestedSearchTools` | omitted: `!backendSearch` | Register separate `grok_web_search` / `x_search` tools |
+| `statefulResponses` | omitted: `false` | Opt-in `store` + `previous_response_id`; `toolUse` turns are not continued |
 | `searchModel` | `grok-build-0.1` | Model used by nested search mode |
 | `searchMaxResults` | `8` | Maximum number of sources returned by nested search |
 | `webSearchTimeoutMs` | `60000` | Cooperative budget for nested web search |

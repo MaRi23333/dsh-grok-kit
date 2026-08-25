@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { apply, Config, resolveNestedSearchTools } from '../src/index.ts'
+import { apply, Config, resolveNestedSearchTools, resolveStatefulResponses } from '../src/index.ts'
 import { XAI_SERVER_X_SEARCH_REJECT_NAMES } from '../src/responses.ts'
 
 describe('resolveNestedSearchTools', () => {
@@ -27,6 +27,18 @@ describe('Config schema nestedSearchTools has no default', () => {
     const parsed = Config({ backendSearch: true } as never)
     expect(parsed.nestedSearchTools).toBeUndefined()
     expect(parsed.backendSearch).toBe(true)
+  })
+})
+
+describe('resolveStatefulResponses', () => {
+  it('stays off unless explicitly enabled', () => {
+    expect(resolveStatefulResponses({})).toBe(false)
+    expect(resolveStatefulResponses({ backendSearch: true })).toBe(false)
+    expect(resolveStatefulResponses({ backendSearch: true, statefulResponses: true })).toBe(true)
+  })
+
+  it('honors an explicit false while backendSearch stays on', () => {
+    expect(resolveStatefulResponses({ backendSearch: true, statefulResponses: false })).toBe(false)
   })
 })
 

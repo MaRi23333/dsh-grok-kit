@@ -16,6 +16,10 @@ import {
 } from '@earendil-works/pi-ai'
 import type { XaiOAuthTokenSource } from './token-source.ts'
 import { safeMessage } from './redact.ts'
+import {
+  applyStatefulContinuation,
+  type ResponseChainStore,
+} from './response-chain.ts'
 
 export const XAI_SERVER_X_SEARCH_REJECT_NAMES = [
   'x_keyword_search',
@@ -49,6 +53,12 @@ export interface XaiResponsesWrapOptions {
   tokenSource?: XaiOAuthTokenSource
   /** Set by wrap from streamSimple options.reasoning === "off" before inner mapping. */
   skipDefaultHigh?: boolean
+  /**
+   * store:true + previous_response_id with only new client items.
+   * Omit / false keeps pi-ai's store:false full replay.
+   */
+  statefulResponses?: boolean
+  chainStore?: ResponseChainStore
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -71,6 +81,19 @@ function toolNameOf(tool: unknown): string | undefined {
 
 function isRetriableChat401(event: AssistantMessageEvent): boolean {
   return event.type === 'error' && /\b401\b/.test(event.error.errorMessage ?? '')
+}
+
+export function isPreviousResponseError(event: AssistantMessageEvent): boolean {
+  if (event.type !== 'error') return false
+  const message = event.error.errorMessage ?? ''
+  return /\b400\b/.test(message) && /previous_response|unknown.?response|response.?id/i.test(message)
+}
+
+function finishedResponseOf(event: AssistantMessageEvent): { responseId: string; stopReason: string } | undefined {
+  if (event.type !== 'done') return undefined
+  const responseId = event.message.responseId
+  if (typeof responseId !== 'string' || responseId.length === 0) return undefined
+  return { responseId, stopReason: event.message.stopReason }
 }
 
 /**
@@ -149,6 +172,12 @@ function rewriteBackendSearchError(event: AssistantMessageEvent, backendSearch: 
 function withPayload(
   streamOptions: StreamOptions | SimpleStreamOptions | undefined,
   options: XaiResponsesWrapOptions,
+  continuation?: {
+    sessionId: string
+    forceFullReplay: () => boolean
+    pending: { fingerprints?: string[]; usedPrevious?: boolean }
+    store: ResponseChainStore
+  },
 ): StreamOptions {
   const skipDefaultHigh = (streamOptions as { reasoning?: string } | undefined)?.reasoning === 'off'
   return {
@@ -156,7 +185,17 @@ function withPayload(
     onPayload: async (payload, model) => {
       const upstream = await streamOptions?.onPayload?.(payload, model)
       const base = upstream ?? payload
-      return applyXaiResponsesPayload(base, model, { ...options, skipDefaultHigh })
+      const applied = applyXaiResponsesPayload(base, model, { ...options, skipDefaultHigh })
+      if (continuation === undefined || !isRecord(applied) || model.api !== 'openai-responses') return applied
+      const next = applyStatefulContinuation(applied, {
+        sessionId: continuation.sessionId,
+        modelId: model.id,
+        store: continuation.store,
+        forceFullReplay: continuation.forceFullReplay(),
+      })
+      continuation.pending.fingerprints = next.fingerprints
+      continuation.pending.usedPrevious = next.usedPrevious
+      return next.payload
     },
   }
 }
@@ -212,11 +251,37 @@ function retryOn401(
 function forwardStream(
   inner: ReturnType<Provider['streamSimple']>,
   backendSearch: boolean,
+  extras?: {
+    remember?: (responseId: string, stopReason: string) => void
+    retryPrevious?: () => ReturnType<Provider['streamSimple']>
+    usedPrevious?: () => boolean
+  },
 ): ReturnType<Provider['streamSimple']> {
   const out = createAssistantMessageEventStream()
   void (async () => {
     try {
-      for await (const event of inner) {
+      let source = inner
+      let first = true
+      for await (const event of source) {
+        if (
+          first
+          && extras?.retryPrevious !== undefined
+          && extras.usedPrevious?.() === true
+          && isPreviousResponseError(event)
+        ) {
+          first = false
+          source = extras.retryPrevious()
+          for await (const retried of source) {
+            const finished = finishedResponseOf(retried)
+            if (finished !== undefined) extras.remember?.(finished.responseId, finished.stopReason)
+            out.push(rewriteBackendSearchError(retried, backendSearch))
+          }
+          out.end()
+          return
+        }
+        first = false
+        const finished = finishedResponseOf(event)
+        if (finished !== undefined) extras?.remember?.(finished.responseId, finished.stopReason)
         out.push(rewriteBackendSearchError(event, backendSearch))
       }
       out.end()
@@ -239,22 +304,67 @@ export function wrapXaiResponsesProvider(
     context: Context,
     streamOptions?: StreamOptions,
   ) => {
-    const injected = withPayload(streamOptions, options)
-    const inner = fn.call(provider, model, context, injected)
+    const sessionId = typeof streamOptions?.sessionId === 'string' && streamOptions.sessionId.length > 0
+      ? streamOptions.sessionId
+      : undefined
+    const stateful = options.statefulResponses === true && options.chainStore !== undefined && sessionId !== undefined
+    let forceFullReplay = false
+    const pending: { fingerprints?: string[]; usedPrevious?: boolean } = {}
+    const continuation = stateful
+      ? {
+        sessionId,
+        forceFullReplay: () => forceFullReplay,
+        pending,
+        store: options.chainStore as ResponseChainStore,
+      }
+      : undefined
+    const injected = withPayload(streamOptions, options, continuation)
+    const begin = (apiKey?: string) => fn.call(
+      provider,
+      model,
+      context,
+      apiKey === undefined ? injected : { ...injected, apiKey },
+    )
+    const extras = stateful
+      ? {
+        remember: (responseId: string, stopReason: string) => {
+          if (pending.fingerprints === undefined) return
+          options.chainStore?.set(sessionId, {
+            responseId,
+            fingerprints: pending.fingerprints,
+            model: model.id,
+            updatedAt: Date.now(),
+            stopReason,
+          })
+        },
+        retryPrevious: () => {
+          forceFullReplay = true
+          options.chainStore?.delete(sessionId)
+          pending.usedPrevious = false
+          return begin(streamOptions?.apiKey)
+        },
+        usedPrevious: () => pending.usedPrevious === true,
+      }
+      : undefined
+    const decorate = (inner: ReturnType<Provider['streamSimple']>) => (
+      options.backendSearch || extras !== undefined
+        ? forwardStream(inner, options.backendSearch, extras)
+        : inner
+    )
     if (!options.retry401 || options.tokenSource === undefined) {
-      return options.backendSearch ? forwardStream(inner, true) : inner
+      return decorate(begin(streamOptions?.apiKey))
     }
     const rejected = streamOptions?.apiKey
     if (rejected === undefined || rejected.length === 0) {
-      return options.backendSearch ? forwardStream(inner, true) : inner
+      return decorate(begin(streamOptions?.apiKey))
     }
-    return retryOn401(inner, {
-      retry: apiKey => fn.call(provider, model, context, { ...injected, apiKey }),
+    return decorate(retryOn401(begin(rejected), {
+      retry: apiKey => begin(apiKey),
       tokenSource: options.tokenSource,
       rejected,
       signal: streamOptions?.signal,
       backendSearch: options.backendSearch,
-    })
+    }))
   }
   return {
     ...provider,
