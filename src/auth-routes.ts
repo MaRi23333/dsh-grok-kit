@@ -468,7 +468,7 @@ export function registerXaiOAuthAuthRoutes(
               options: mergeStoredOptionsPatch(readStoredOptions(), body),
             })
             await writeStoredOptions(merged)
-            // Respond with the sanized document so the UI state always
+            // Respond with the sanitized document so the UI state always
             // matches the disk (invalid/out-of-range values are dropped).
             json(res, 200, { options: merged })
           } catch (error: unknown) {

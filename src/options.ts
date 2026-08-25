@@ -14,7 +14,9 @@ import { resolveDshHome } from '@deepseek-ai/dsh-home-paths'
 const OPTIONS_VERSION = 1
 const OPTIONS_FILENAME = '.dsh-grok-kit-options.json'
 /** Bounded numeric ranges: anything outside is dropped, never persisted. */
+const SEARCH_MAX_RESULTS_FLOOR = 1
 const SEARCH_MAX_RESULTS_CEILING = 100
+const TIMEOUT_FLOOR_MS = 1_000
 const TIMEOUT_CEILING_MS = 600_000
 const SEARCH_MODEL_MAX_LENGTH = 128
 
@@ -33,8 +35,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function positiveFinite(value: unknown): number | undefined {
-  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined
+function boundedInteger(value: unknown, floor: number, ceiling: number): number | undefined {
+  return typeof value === 'number'
+    && Number.isInteger(value)
+    && value >= floor
+    && value <= ceiling
+    ? value
+    : undefined
 }
 
 /**
@@ -55,18 +62,12 @@ export function sanitizeStoredOptions(value: unknown): StoredPluginOptions {
   ) {
     out['searchModel'] = raw['searchModel'].trim()
   }
-  const maxResults = positiveFinite(raw['searchMaxResults'])
-  if (maxResults !== undefined && maxResults <= SEARCH_MAX_RESULTS_CEILING) {
-    out['searchMaxResults'] = Math.trunc(maxResults)
-  }
-  const webTimeout = positiveFinite(raw['webSearchTimeoutMs'])
-  if (webTimeout !== undefined && webTimeout <= TIMEOUT_CEILING_MS) {
-    out['webSearchTimeoutMs'] = Math.trunc(webTimeout)
-  }
-  const xTimeout = positiveFinite(raw['xSearchTimeoutMs'])
-  if (xTimeout !== undefined && xTimeout <= TIMEOUT_CEILING_MS) {
-    out['xSearchTimeoutMs'] = Math.trunc(xTimeout)
-  }
+  const maxResults = boundedInteger(raw['searchMaxResults'], SEARCH_MAX_RESULTS_FLOOR, SEARCH_MAX_RESULTS_CEILING)
+  if (maxResults !== undefined) out['searchMaxResults'] = maxResults
+  const webTimeout = boundedInteger(raw['webSearchTimeoutMs'], TIMEOUT_FLOOR_MS, TIMEOUT_CEILING_MS)
+  if (webTimeout !== undefined) out['webSearchTimeoutMs'] = webTimeout
+  const xTimeout = boundedInteger(raw['xSearchTimeoutMs'], TIMEOUT_FLOOR_MS, TIMEOUT_CEILING_MS)
+  if (xTimeout !== undefined) out['xSearchTimeoutMs'] = xTimeout
   return out
 }
 

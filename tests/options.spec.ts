@@ -75,6 +75,18 @@ describe('sanitizeStoredOptions', () => {
     expect(sanitizeStoredOptions({
       version: 1,
       options: {
+        searchMaxResults: 1,
+        webSearchTimeoutMs: 1_000,
+        xSearchTimeoutMs: 1_000,
+      },
+    })).toEqual({
+      searchMaxResults: 1,
+      webSearchTimeoutMs: 1_000,
+      xSearchTimeoutMs: 1_000,
+    })
+    expect(sanitizeStoredOptions({
+      version: 1,
+      options: {
         searchMaxResults: 100,
         webSearchTimeoutMs: 600_000,
         xSearchTimeoutMs: 600_000,
@@ -86,6 +98,25 @@ describe('sanitizeStoredOptions', () => {
       xSearchTimeoutMs: 600_000,
       searchModel: 'grok-4.5',
     })
+  })
+
+  it('drops fractional and below-floor numeric values instead of truncating them', () => {
+    expect(sanitizeStoredOptions({
+      version: 1,
+      options: {
+        searchMaxResults: 0.5,
+        webSearchTimeoutMs: 999.9,
+        xSearchTimeoutMs: 1,
+      },
+    })).toEqual({})
+    expect(sanitizeStoredOptions({
+      version: 1,
+      options: {
+        searchMaxResults: 0,
+        webSearchTimeoutMs: 1,
+        xSearchTimeoutMs: 600_001,
+      },
+    })).toEqual({})
   })
 })
 
