@@ -61,6 +61,32 @@ describe('sanitizeStoredOptions', () => {
       options: { backendSearch: 'yes', searchMaxResults: -1, webSearchTimeoutMs: 0, searchModel: ' ' },
     })).toEqual({})
   })
+
+  it('enforces numeric ceilings and model-id length', () => {
+    expect(sanitizeStoredOptions({
+      version: 1,
+      options: {
+        searchMaxResults: 101,
+        webSearchTimeoutMs: 600_001,
+        xSearchTimeoutMs: 999_999,
+        searchModel: 'x'.repeat(200),
+      },
+    })).toEqual({})
+    expect(sanitizeStoredOptions({
+      version: 1,
+      options: {
+        searchMaxResults: 100,
+        webSearchTimeoutMs: 600_000,
+        xSearchTimeoutMs: 600_000,
+        searchModel: 'grok-4.5',
+      },
+    })).toEqual({
+      searchMaxResults: 100,
+      webSearchTimeoutMs: 600_000,
+      xSearchTimeoutMs: 600_000,
+      searchModel: 'grok-4.5',
+    })
+  })
 })
 
 describe('mergePluginOptions', () => {
@@ -93,6 +119,19 @@ describe('mergeStoredOptionsPatch', () => {
     })
     expect(mergeStoredOptionsPatch(current, { unknown: 1 })).toEqual(current)
     expect(mergeStoredOptionsPatch(current, 'nope')).toEqual(current)
+  })
+
+  it('POST-save path returns the same sanitized document it persists', async () => {
+    const home = await tempHome()
+    // An out-of-range value comes in: the merged doc drops it before write,
+    // and the response must match what is on disk (GROK-OPTIONS-001).
+    const patched = sanitizeStoredOptions({
+      version: 1,
+      options: mergeStoredOptionsPatch(readStoredOptions(), { backendSearch: false, searchMaxResults: 500 }),
+    })
+    await writeStoredOptions(patched)
+    expect(readStoredOptions()).toEqual(patched)
+    expect(patched).toEqual({ backendSearch: false })
   })
 })
 

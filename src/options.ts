@@ -13,6 +13,10 @@ import { resolveDshHome } from '@deepseek-ai/dsh-home-paths'
 
 const OPTIONS_VERSION = 1
 const OPTIONS_FILENAME = '.dsh-grok-kit-options.json'
+/** Bounded numeric ranges: anything outside is dropped, never persisted. */
+const SEARCH_MAX_RESULTS_CEILING = 100
+const TIMEOUT_CEILING_MS = 600_000
+const SEARCH_MODEL_MAX_LENGTH = 128
 
 export interface StoredPluginOptions {
   backendSearch?: boolean
@@ -44,15 +48,25 @@ export function sanitizeStoredOptions(value: unknown): StoredPluginOptions {
   for (const key of ['backendSearch', 'nestedSearchTools', 'statefulResponses', 'imagineTool'] as const) {
     if (typeof raw[key] === 'boolean') out[key] = raw[key]
   }
-  if (typeof raw['searchModel'] === 'string' && raw['searchModel'].trim().length > 0) {
+  if (
+    typeof raw['searchModel'] === 'string'
+    && raw['searchModel'].trim().length > 0
+    && raw['searchModel'].trim().length <= SEARCH_MODEL_MAX_LENGTH
+  ) {
     out['searchModel'] = raw['searchModel'].trim()
   }
   const maxResults = positiveFinite(raw['searchMaxResults'])
-  if (maxResults !== undefined) out['searchMaxResults'] = Math.trunc(maxResults)
+  if (maxResults !== undefined && maxResults <= SEARCH_MAX_RESULTS_CEILING) {
+    out['searchMaxResults'] = Math.trunc(maxResults)
+  }
   const webTimeout = positiveFinite(raw['webSearchTimeoutMs'])
-  if (webTimeout !== undefined) out['webSearchTimeoutMs'] = Math.trunc(webTimeout)
+  if (webTimeout !== undefined && webTimeout <= TIMEOUT_CEILING_MS) {
+    out['webSearchTimeoutMs'] = Math.trunc(webTimeout)
+  }
   const xTimeout = positiveFinite(raw['xSearchTimeoutMs'])
-  if (xTimeout !== undefined) out['xSearchTimeoutMs'] = Math.trunc(xTimeout)
+  if (xTimeout !== undefined && xTimeout <= TIMEOUT_CEILING_MS) {
+    out['xSearchTimeoutMs'] = Math.trunc(xTimeout)
+  }
   return out
 }
 

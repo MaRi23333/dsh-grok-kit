@@ -325,6 +325,10 @@ export function wrapXaiResponsesProvider(
       context,
       apiKey === undefined ? injected : { ...injected, apiKey },
     )
+    // Tracks the key of the *currently active* request. retryOn401 updates it
+    // after a refresh so the previous_response 400 fallback replays with the
+    // fresh key instead of the rejected one (platform GROK-RETRY-001).
+    let currentKey = streamOptions?.apiKey
     const extras = stateful
       ? {
         remember: (responseId: string, stopReason: string) => {
@@ -341,7 +345,7 @@ export function wrapXaiResponsesProvider(
           forceFullReplay = true
           options.chainStore?.delete(sessionId)
           pending.usedPrevious = false
-          return begin(streamOptions?.apiKey)
+          return begin(currentKey)
         },
         usedPrevious: () => pending.usedPrevious === true,
       }
@@ -352,14 +356,17 @@ export function wrapXaiResponsesProvider(
         : inner
     )
     if (!options.retry401 || options.tokenSource === undefined) {
-      return decorate(begin(streamOptions?.apiKey))
+      return decorate(begin(currentKey))
     }
-    const rejected = streamOptions?.apiKey
+    const rejected = currentKey
     if (rejected === undefined || rejected.length === 0) {
-      return decorate(begin(streamOptions?.apiKey))
+      return decorate(begin(currentKey))
     }
     return decorate(retryOn401(begin(rejected), {
-      retry: apiKey => begin(apiKey),
+      retry: apiKey => {
+        currentKey = apiKey
+        return begin(apiKey)
+      },
       tokenSource: options.tokenSource,
       rejected,
       signal: streamOptions?.signal,

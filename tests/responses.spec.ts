@@ -387,5 +387,83 @@ describe('stateful continuation wrap', () => {
     expect(events.some(event => event.type === 'done')).toBe(true)
     expect(isPreviousResponseError(errorEvent('OpenAI API error (400): previous_response_id not found'))).toBe(true)
   })
+
+  it('replays the full request with the refreshed key after 401 then previous_response 400', async () => {
+    const refresh = vi.fn(async () => 'new-token')
+    const tokens: XaiOAuthTokenSource = { available: () => true, resolve: async () => 'old', refresh }
+    const calls: Array<string | undefined> = []
+    const payloads: unknown[] = []
+    const store = createMemoryResponseChainStore({
+      'sess-1': {
+        responseId: 'resp-1',
+        fingerprints: [fingerprintInputItem({ role: 'user', content: 'q1' })],
+        model: 'grok-4.6',
+        updatedAt: Date.now(),
+        stopReason: 'stop',
+      },
+    })
+    const inner: Provider = {
+      id: 'xai-oauth',
+      name: 'x',
+      auth: { apiKey: { name: 't', resolve: async () => undefined } },
+      getModels: () => [],
+      stream: () => createAssistantMessageEventStream(),
+      streamSimple(_model, _ctx, options) {
+        calls.push(options?.apiKey)
+        const stream = createAssistantMessageEventStream()
+        queueMicrotask(() => {
+          if (calls.length === 1) {
+            // First call: chained request (previous_response_id + new user).
+            void Promise.resolve(options?.onPayload?.(
+              { model: 'grok-4.6', input: [{ role: 'user', content: 'q1' }, { role: 'user', content: 'q2' }] },
+              GROK_46_MODEL,
+            )).then(() => {
+              stream.push(errorEvent('OpenAI API error (401): expired'))
+              stream.end()
+            })
+            return
+          }
+          if (calls.length === 2) {
+            stream.push(errorEvent('OpenAI API error (400): previous response id (resp-1) not found'))
+            stream.end()
+            return
+          }
+          void Promise.resolve(options?.onPayload?.(
+            { model: 'grok-4.6', input: [{ role: 'user', content: 'q1' }, { role: 'user', content: 'q2' }] },
+            GROK_46_MODEL,
+          )).then(result => {
+            payloads.push(result ?? {})
+            const done = doneEvent()
+            if (done.type === 'done') stream.push({ type: 'start', partial: done.message })
+            stream.push(done)
+            stream.end()
+          })
+        })
+        return stream
+      },
+    }
+    const wrapped = wrapXaiResponsesProvider(inner, {
+      backendSearch: false,
+      retry401: true,
+      tokenSource: tokens,
+      statefulResponses: true,
+      chainStore: store,
+    })
+    const events: AssistantMessageEvent[] = []
+    for await (const event of wrapped.streamSimple(
+      GROK_46_MODEL as Model<'openai-responses'>,
+      { messages: [] },
+      { apiKey: 'old', sessionId: 'sess-1' },
+    )) {
+      events.push(event)
+    }
+    // platform GROK-RETRY-001: the full replay must use the REFRESHED key,
+    // not the rejected 'old' one, and must drop previous_response_id.
+    expect(refresh).toHaveBeenCalledOnce()
+    expect(calls).toEqual(['old', 'new-token', 'new-token'])
+    expect((payloads[0] as Record<string, unknown>)['previous_response_id']).toBeUndefined()
+    expect(store.get('sess-1')).toBeUndefined()
+    expect(events.some(event => event.type === 'done')).toBe(true)
+  })
 })
 

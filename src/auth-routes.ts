@@ -19,6 +19,7 @@ import { readStoredProxyUrl, setXaiProxyUrl, validProxyUrl, writeStoredProxyUrl 
 import { safeMessage } from './redact.ts'
 import {
   readStoredOptions,
+  sanitizeStoredOptions,
   type StoredPluginOptions,
   writeStoredOptions,
 } from './options.ts'
@@ -462,8 +463,13 @@ export function registerXaiOAuthAuthRoutes(
           if (req.method !== 'POST') return json(res, 405, { error: 'method not allowed' })
           try {
             const body = await readJson(req)
-            const merged = mergeStoredOptionsPatch(readStoredOptions(), body)
+            const merged = sanitizeStoredOptions({
+              version: 1,
+              options: mergeStoredOptionsPatch(readStoredOptions(), body),
+            })
             await writeStoredOptions(merged)
+            // Respond with the sanized document so the UI state always
+            // matches the disk (invalid/out-of-range values are dropped).
             json(res, 200, { options: merged })
           } catch (error: unknown) {
             json(res, errorStatus(error), { error: safeMessage(error) })
