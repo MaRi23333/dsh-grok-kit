@@ -1,6 +1,25 @@
-import { describe, expect, it, vi } from 'vitest'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { apply, Config, resolveNestedSearchTools, resolveStatefulResponses } from '../src/index.ts'
 import { XAI_SERVER_X_SEARCH_REJECT_NAMES } from '../src/responses.ts'
+
+const originalHome = process.env.DSH_HOME
+let dir: string | undefined
+
+beforeEach(async () => {
+  // apply() reads the stored options file from $DSH_HOME — isolate it so a
+  // real user settings file cannot leak into these registration tests.
+  dir = await mkdtemp(join(tmpdir(), 'dsh-grok-kit-config-nested-'))
+  process.env.DSH_HOME = dir
+})
+
+afterEach(async () => {
+  process.env.DSH_HOME = originalHome
+  if (dir !== undefined) await rm(dir, { recursive: true, force: true })
+  dir = undefined
+})
 
 describe('resolveNestedSearchTools', () => {
   it('registers nested tools when config is empty (backend default false)', () => {

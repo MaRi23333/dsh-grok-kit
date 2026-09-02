@@ -120,7 +120,7 @@ The model list comes from the signed-in account's `GET /v1/models` response and 
 
 | Key | Default | Meaning |
 | --- | --- | --- |
-| `backendSearch` | schema: `false`; bundle: `true` | Enable xAI server-side web/X search in the main chat request |
+| `backendSearch` | `false` (off by default; enable from Settings) | Enable xAI server-side web/X search in the main chat request |
 | `nestedSearchTools` | omitted: `!backendSearch` | Register separate `grok_web_search` / `x_search` tools |
 | `statefulResponses` | omitted: `false` | Opt-in `store` + `previous_response_id`; `toolUse` turns are not continued |
 | `searchModel` | `grok-build-0.1` | Model used by nested search mode |

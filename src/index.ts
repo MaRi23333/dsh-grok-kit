@@ -104,6 +104,8 @@ export {
 export {
   applyXaiResponsesPayload,
   isPreviousResponseError,
+  sanitizeRejectToolEvent,
+  stripRejectToolCalls,
   wrapXaiResponsesProvider,
   XAI_BUILTIN_SEARCH_FUNCTION_NAMES,
   XAI_SERVER_X_SEARCH_REJECT_NAMES,

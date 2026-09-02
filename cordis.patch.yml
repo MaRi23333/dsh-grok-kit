@@ -10,7 +10,9 @@
     - id: dsh-grok-kit
       name: dsh-grok-kit
       config:
-        # Mix xAI server-side web_search / x_search into the main grok-4.6 request.
+        # Main-request server-side web/X search is opt-in now (2026-08-25):
+        # reliable most of the time, but occasional odd failures. Enable it
+        # from Settings -> xAI Grok -> Search & feature options when needed.
         # DSH native function web_search is stripped from the payload to avoid
         # HTTP 400 Duplicate tool names: web_search.
-        backendSearch: true
+        backendSearch: false

@@ -516,7 +516,7 @@ export function XaiSettings({ t }: XaiOAuthSettingsProps) {
         <label style={optionRowStyle}>
           <input
             type="checkbox"
-            checked={optBool(options.backendSearch, true)}
+            checked={optBool(options.backendSearch, false)}
             disabled={optionsBusy}
             onChange={(event) => markOption('backendSearch', event.target.checked)}
           />

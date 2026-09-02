@@ -120,7 +120,7 @@ dsh plugin --profile web add github:MaRi23333/dsh-grok-kit#91266c116dd6be086cb91
 
 | 配置项 | 默认值 | 说明 |
 | --- | --- | --- |
-| `backendSearch` | schema 为 `false`；本 bundle 设为 `true` | 在主聊天请求中启用 xAI 服务端网页/X 搜索 |
+| `backendSearch` | `false`（默认关闭；设置页可打开） | 在主聊天请求中启用 xAI 服务端网页/X 搜索 |
 | `nestedSearchTools` | 省略时取 `!backendSearch` | 注册独立的 `grok_web_search` / `x_search` |
 | `statefulResponses` | 省略时 `false` | 显式打开才用 `store` + `previous_response_id`；`toolUse` 回合不续链 |
 | `searchModel` | `grok-build-0.1` | 嵌套搜索模式使用的模型 |

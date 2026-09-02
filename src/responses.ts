@@ -7,6 +7,7 @@
 import {
   createAssistantMessageEventStream,
   type Api,
+  type AssistantMessage,
   type AssistantMessageEvent,
   type Context,
   type Model,
@@ -44,6 +45,7 @@ const STRIP_FUNCTION_NAMES = new Set<string>([
   ...XAI_SERVER_X_SEARCH_REJECT_NAMES,
   ...XAI_BUILTIN_SEARCH_FUNCTION_NAMES,
 ])
+const REJECT_TOOL_NAMES = new Set<string>(XAI_SERVER_X_SEARCH_REJECT_NAMES)
 const ENCRYPTED_REASONING = 'reasoning.encrypted_content'
 
 export interface XaiResponsesWrapOptions {
@@ -87,6 +89,49 @@ export function isPreviousResponseError(event: AssistantMessageEvent): boolean {
   if (event.type !== 'error') return false
   const message = event.error.errorMessage ?? ''
   return /\b400\b/.test(message) && /previous_response|unknown.?response|response.?id/i.test(message)
+}
+
+/** Drop xAI custom_tool_call stubs so DSH does not start another step and reprint the answer. */
+export function stripRejectToolCalls(message: AssistantMessage): AssistantMessage {
+  const content = message.content.filter(block => block.type !== 'toolCall' || !REJECT_TOOL_NAMES.has(block.name))
+  if (content.length === message.content.length) return message
+  const stillTools = content.some(block => block.type === 'toolCall')
+  return {
+    ...message,
+    content,
+    stopReason: !stillTools && message.stopReason === 'toolUse' ? 'stop' : message.stopReason,
+  }
+}
+
+function rejectToolCallName(event: AssistantMessageEvent): string | undefined {
+  // Relies on pi-ai createSlot constructing the ToolCall block (with name)
+  // at toolcall_start and only mutating the args buffer on deltas — verified
+  // in openai-responses-shared.js (custom_tool_call branch). If upstream ever
+  // streams the name itself, this needs an accumulating-name strategy.
+  if (event.type === 'toolcall_end') return event.toolCall.name
+  if (event.type === 'toolcall_start' || event.type === 'toolcall_delta') {
+    const block = event.partial.content[event.contentIndex]
+    return block?.type === 'toolCall' ? block.name : undefined
+  }
+  return undefined
+}
+
+export function sanitizeRejectToolEvent(event: AssistantMessageEvent): AssistantMessageEvent | undefined {
+  const name = rejectToolCallName(event)
+  if (name !== undefined && REJECT_TOOL_NAMES.has(name)) return undefined
+  if (event.type === 'done') {
+    const message = stripRejectToolCalls(event.message)
+    return message === event.message ? event : { ...event, message }
+  }
+  if (event.type === 'error') {
+    const error = stripRejectToolCalls(event.error)
+    return error === event.error ? event : { ...event, error }
+  }
+  if (event.type === 'start') {
+    const partial = stripRejectToolCalls(event.partial)
+    return partial === event.partial ? event : { ...event, partial }
+  }
+  return event
 }
 
 function finishedResponseOf(event: AssistantMessageEvent): { responseId: string; stopReason: string } | undefined {
@@ -272,17 +317,21 @@ function forwardStream(
           first = false
           source = extras.retryPrevious()
           for await (const retried of source) {
-            const finished = finishedResponseOf(retried)
+            const sanitized = sanitizeRejectToolEvent(retried)
+            if (sanitized === undefined) continue
+            const finished = finishedResponseOf(sanitized)
             if (finished !== undefined) extras.remember?.(finished.responseId, finished.stopReason)
-            out.push(rewriteBackendSearchError(retried, backendSearch))
+            out.push(rewriteBackendSearchError(sanitized, backendSearch))
           }
           out.end()
           return
         }
         first = false
-        const finished = finishedResponseOf(event)
+        const sanitized = sanitizeRejectToolEvent(event)
+        if (sanitized === undefined) continue
+        const finished = finishedResponseOf(sanitized)
         if (finished !== undefined) extras?.remember?.(finished.responseId, finished.stopReason)
-        out.push(rewriteBackendSearchError(event, backendSearch))
+        out.push(rewriteBackendSearchError(sanitized, backendSearch))
       }
       out.end()
     } catch (error: unknown) {

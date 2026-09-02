@@ -4,6 +4,7 @@ import type { AssistantMessageEvent, Model, Provider } from '@earendil-works/pi-
 import {
   applyXaiResponsesPayload,
   isPreviousResponseError,
+  stripRejectToolCalls,
   wrapXaiResponsesProvider,
   XAI_SERVER_X_SEARCH_REJECT_NAMES,
 } from '../src/responses.ts'
@@ -205,6 +206,126 @@ describe('wrapXaiResponsesProvider 401', () => {
     expect(events[0]?.type).toBe('error')
     if (events[0]?.type === 'error') {
       expect(events[0].error.errorMessage).toMatch(/backendSearch: false/)
+    }
+  })
+})
+
+describe('stripRejectToolCalls', () => {
+  it('removes x_keyword_search and turns a stub-only toolUse into stop', () => {
+    const done = doneEvent()
+    if (done.type !== 'done') throw new Error('unreachable')
+    const stripped = stripRejectToolCalls({
+      ...done.message,
+      stopReason: 'toolUse',
+      content: [
+        { type: 'text', text: 'search writeup' },
+        { type: 'toolCall', id: 'xs|ctc', name: 'x_keyword_search', arguments: {} },
+      ],
+    })
+    expect(stripped.stopReason).toBe('stop')
+    expect(stripped.content).toEqual([{ type: 'text', text: 'search writeup' }])
+  })
+
+  it('keeps real tools and toolUse when bash remains', () => {
+    const done = doneEvent()
+    if (done.type !== 'done') throw new Error('unreachable')
+    const stripped = stripRejectToolCalls({
+      ...done.message,
+      stopReason: 'toolUse',
+      content: [
+        { type: 'toolCall', id: 'a|fc', name: 'pwsh', arguments: {} },
+        { type: 'toolCall', id: 'b|ctc', name: 'x_keyword_search', arguments: {} },
+      ],
+    })
+    expect(stripped.stopReason).toBe('toolUse')
+    expect(stripped.content).toEqual([{ type: 'toolCall', id: 'a|fc', name: 'pwsh', arguments: {} }])
+  })
+
+  it('drops reject-tool start/delta/end events (name present from toolcall_start)', async () => {
+    const inner: Provider = {
+      id: 'xai-oauth',
+      name: 'x',
+      auth: { apiKey: { name: 't', resolve: async () => undefined } },
+      getModels: () => [],
+      stream: () => createAssistantMessageEventStream(),
+      streamSimple() {
+        const stream = createAssistantMessageEventStream()
+        queueMicrotask(() => {
+          const done = doneEvent()
+          if (done.type !== 'done') throw new Error('unreachable')
+          const partial = {
+            ...done.message,
+            stopReason: 'toolUse' as const,
+            content: [
+              { type: 'toolCall' as const, id: 'xs|ctc', name: 'x_keyword_search', arguments: { input: '' } },
+            ],
+          }
+          stream.push({ type: 'start', partial })
+          stream.push({ type: 'toolcall_start', contentIndex: 0, partial })
+          stream.push({ type: 'toolcall_delta', contentIndex: 0, delta: '{"input":"q"}', partial })
+          stream.push({ type: 'toolcall_end', contentIndex: 0, toolCall: partial.content[0] as never, partial })
+          stream.push({ type: 'done', reason: 'toolUse', message: partial })
+          stream.end()
+        })
+        return stream
+      },
+    }
+    const wrapped = wrapXaiResponsesProvider(inner, { backendSearch: true, retry401: false })
+    const events: AssistantMessageEvent[] = []
+    for await (const event of wrapped.streamSimple(GROK_46_MODEL as Model<'openai-responses'>, { messages: [] })) {
+      events.push(event)
+    }
+    expect(events.some(event => event.type === 'toolcall_start')).toBe(false)
+    expect(events.some(event => event.type === 'toolcall_delta')).toBe(false)
+    expect(events.some(event => event.type === 'toolcall_end')).toBe(false)
+    const doneResult = events.find(event => event.type === 'done')
+    if (doneResult?.type === 'done') {
+      expect(doneResult.message.stopReason).toBe('stop')
+      expect(doneResult.message.content.some(block => block.type === 'toolCall')).toBe(false)
+    }
+  })
+})
+
+describe('wrap drops reject-tool events so DSH does not start a reprint step', () => {
+  it('forwards stop instead of toolUse when the only tool is x_keyword_search', async () => {
+    const inner: Provider = {
+      id: 'xai-oauth',
+      name: 'x',
+      auth: { apiKey: { name: 't', resolve: async () => undefined } },
+      getModels: () => [],
+      stream: () => createAssistantMessageEventStream(),
+      streamSimple() {
+        const stream = createAssistantMessageEventStream()
+        queueMicrotask(() => {
+          const done = doneEvent()
+          if (done.type !== 'done') throw new Error('unreachable')
+          const partial = {
+            ...done.message,
+            stopReason: 'toolUse' as const,
+            content: [
+              { type: 'text' as const, text: 'writeup' },
+              { type: 'toolCall' as const, id: 'xs|ctc', name: 'x_keyword_search', arguments: {} },
+            ],
+          }
+          stream.push({ type: 'start', partial })
+          stream.push({ type: 'toolcall_end', contentIndex: 1, toolCall: partial.content[1] as never, partial })
+          stream.push({ type: 'done', reason: 'toolUse', message: partial })
+          stream.end()
+        })
+        return stream
+      },
+    }
+    const wrapped = wrapXaiResponsesProvider(inner, { backendSearch: true, retry401: false })
+    const events: AssistantMessageEvent[] = []
+    for await (const event of wrapped.streamSimple(GROK_46_MODEL as Model<'openai-responses'>, { messages: [] })) {
+      events.push(event)
+    }
+    expect(events.some(event => event.type === 'toolcall_end')).toBe(false)
+    const done = events.find(event => event.type === 'done')
+    expect(done?.type).toBe('done')
+    if (done?.type === 'done') {
+      expect(done.message.stopReason).toBe('stop')
+      expect(done.message.content.some(block => block.type === 'toolCall')).toBe(false)
     }
   })
 })
