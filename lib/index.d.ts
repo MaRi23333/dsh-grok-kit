@@ -172,12 +172,26 @@ declare class XaiOAuthCredentialStore implements CredentialStore {
   private owns;
   /** Cheap synchronous file-existence check; never refreshes or reads secrets. */
   exists(): boolean;
+  /**
+   * Break a writer lock whose recorded owner process is provably dead.
+   * dsh-atomic-write leaves orphan recovery to operators by design (lock age
+   * cannot distinguish a crashed owner from a paused writer), but a lock pid
+   * that no longer exists (kill(pid, 0) → ESRCH) is proof enough for this
+   * plugin's own lock sibling: a force-killed host otherwise wedges every
+   * later credential write until a human deletes the file by hand. Runs
+   * before every withFileLock acquisition below; a lock that cannot be
+   * *proven* orphaned is left untouched.
+   */
+  private clearStaleLock;
   read(providerId: string): Promise<Credential | undefined>;
   list(): Promise<readonly CredentialInfo[]>;
   /**
    * Run a read-modify-write under the cross-process writer lock.
-   * The lock's wait budget is a fixed 2s (dsh-atomic-write) and is sized for
-   * pure file I/O: `fn` MUST NOT perform network work inside the lock.
+   * A leftover lock whose recorded owner is provably dead is broken before
+   * acquisition (`clearStaleLock`); one held by a live process still fails
+   * after the wait budget. That budget is a fixed 2s (dsh-atomic-write) and
+   * is sized for pure file I/O: `fn` MUST NOT perform network work inside
+   * the lock.
    * Refresh-first-then-commit flows read + refresh outside and only run the
    * guarded compare-and-write here (see createXaiOAuthSearchTokenSource).
    * pi-ai's own OAuth refresh does run inside its `modify` call — host
@@ -202,9 +216,27 @@ declare class XaiOAuthSession {
   private readonly cacheFile;
   private onCatalogChange;
   private cachedProvider;
-  constructor(store?: XaiOAuthCredentialStore, onCatalogChange?: () => void);
+  private readonly catalogRetryDelaysMs;
+  private catalogRetryTimer;
+  private catalogRetryAttempt;
+  private disposed;
+  constructor(store?: XaiOAuthCredentialStore, onCatalogChange?: () => void, options?: {
+    catalogRetryDelaysMs?: readonly number[];
+  });
   setWrapOptions(next: XaiResponsesWrapOptions): void;
   private invalidateProvider;
+  /**
+   * Schedule the next background catalog retry after a failed refresh. Only
+   * while a credential file exists — a logged-out store cannot succeed — and
+   * with an unref'd timer so the CLI one-shots (bin.ts) still exit on time.
+   * The retry reuses `refreshLiveCatalog`, so a stale lock that broke the
+   * startup attempt is re-examined (and broken when provably orphaned).
+   */
+  private scheduleCatalogRetry;
+  /** Cancel a pending retry and restart the backoff episode from zero. */
+  private clearCatalogRetry;
+  /** Stop background catalog retries; pending refreshes may still finish. */
+  dispose(): void;
   /** Secret-free listing diagnostic from the last refresh. */
   get catalogError(): string | undefined;
   get catalogSource(): CatalogSource;
@@ -487,6 +519,42 @@ declare class XaiOAuthSearchProvider {
   search(request: SearchRequest, signal?: AbortSignal): Promise<SearchResult>;
 }
 //#endregion
+//#region src/lock-rescue.d.ts
+/**
+ * `@deepseek-ai/dsh-atomic-write` deliberately never removes a lock it did
+ * not create: lock-file age cannot distinguish a crashed owner from a paused
+ * live writer, so orphan recovery is left to the operator. In practice that
+ * operator action never happens until something breaks: a force-killed host
+ * leaves `<file>.lock` behind and every later writer of the credential file
+ * times out until a human notices. This happened three times in the field
+ * (`.grok/auth.json.lock` via the Grok CLI, then `.dsh/.xai-oauth-auth.json.lock`
+ * for this plugin), which is why the plugin now proves orphanhood itself.
+ *
+ * Proof standard: a dsh-atomic-write lock contains exactly `${process.pid}\n`,
+ * and `process.kill(pid, 0)` failing with `ESRCH` means that pid no longer
+ * exists. A dead owner cannot release its critical section later, so removing
+ * the lock cannot race a live writer — with one exception: a contender that
+ * broke the same stale lock and was handed it fresh between our two reads.
+ * `breakStaleWriterLock` re-reads the content immediately before unlinking
+ * and aborts on any change, closing that window to a single read→rm pair.
+ * Anything short of proof — unparsable content, a recycled pid, an
+ * `EPERM`/`EACCES` from a foreign-owner process — is left untouched for the
+ * operator, never guessed.
+ */
+/** Extract the owner pid from dsh-atomic-write lock content (`${pid}\n`). */
+declare function parseLockPid(text: string): number | undefined;
+/** Whether `pid` is running: `true` alive, `false` provably dead, `undefined` unknown. */
+declare function isPidAlive(pid: number): boolean | undefined;
+/**
+ * Remove the writer lock at `lockPath` when its recorded owner is provably
+ * dead. Returns the dead owner's pid when the lock file was removed, and
+ * `undefined` when there was nothing to do or orphanhood could not be proven
+ * (missing/unparsable lock, live or unknown owner, content changed between
+ * the two reads, unlink refused). Never throws: rescue must not add a new
+ * failure in front of the operation that follows it.
+ */
+declare function breakStaleWriterLock(lockPath: string): Promise<number | undefined>;
+//#endregion
 //#region src/tools.d.ts
 /** Default upper bound on returned sources per call. */
 declare const DEFAULT_SEARCH_MAX_RESULTS = 8;
@@ -570,4 +638,4 @@ declare function resolveStatefulResponses(config: Config): boolean;
 /** Register the xai-oauth LLM route, OAuth routes, Imagine, and search wiring. */
 declare function apply(ctx: Context, config: Config): void;
 //#endregion
-export { type CatalogSource, Config, DEFAULT_IMAGINE_MODEL, DEFAULT_SEARCH_MAX_RESULTS, DEFAULT_WEB_SEARCH_TIMEOUT_MS, DEFAULT_XAI_OAUTH_MODEL, DEFAULT_XAI_SEARCH_MODEL, DEFAULT_X_SEARCH_TIMEOUT_MS, GROK_46_MODEL, GROK_XAI_CLIENT_ID, GROK_XAI_SLOT_KEY, type GrokImportProbe, type LoginChallenge, PREFERRED_XAI_OAUTH_MODEL, type ResponseChainRecord, type ResponseChainStore, type SearchRequest, type SearchResult, type SearchSource, type StoredPluginOptions, XAI_BUILTIN_SEARCH_FUNCTION_NAMES, XAI_IMAGES_URL, XAI_MODELS_URL, XAI_OAUTH_AUTH_FILENAME, XAI_OAUTH_AUTH_IMPORT_PATH, XAI_OAUTH_AUTH_LOGIN_PATH, XAI_OAUTH_AUTH_LOGOUT_PATH, XAI_OAUTH_AUTH_MODELS_PATH, XAI_OAUTH_AUTH_OPTIONS_PATH, XAI_OAUTH_AUTH_PROXY_PATH, XAI_OAUTH_AUTH_STATUS_PATH, XAI_OAUTH_ROUTE, XAI_OAUTH_STREAM_IDLE_TIMEOUT_MS, XAI_PI_PROVIDER, XAI_RESPONSES_URL, XAI_SERVER_X_SEARCH_REJECT_NAMES, type XaiOAuthAuthStatus, XaiOAuthCredentialStore, XaiOAuthSearchError, XaiOAuthSearchProvider, XaiOAuthSession, type XaiOAuthTokenSource, type XaiOAuthWebAuthStatus, type XaiResponsesWrapOptions, type XaiSearchTool, apply, applyGrokImagineTool, applyGrokSearchTools, applyStatefulContinuation, applyXaiProxy, applyXaiResponsesPayload, applyXaiServerSearchRejectTools, buildSearchToolPayload, capSources, catalogModels, clientInputDelta, createFileResponseChainStore, createMemoryResponseChainStore, createXaiOAuthAdapter, createXaiOAuthSearchTokenSource, extractClientInputItems, extractModelIds, fetchLiveModelIds, filterSelectedChatModelIds, fingerprintInputItem, formatGrokSearchOutput, grokAuthPath, imagineModelId, importGrokAuth, importXaiOAuthFromGrok, importXaiOAuthSession, includeForSearchTool, inject, installXaiFetchHook, isClientOriginatedInputItem, isComposerChatModel, isGrokAuthDocument, isGrokAuthPath, isPreviousResponseError, isToolOutputInputItem, isUserInputItem, lockPathForAuthFile, loginXaiOAuth, loginXaiOAuthSession, logoutXaiOAuth, mapXaiSearchResponse, materializeLiveModel, mergeLiveCatalog, mergePluginOptions, name, optionsPath, parseGrokAuthDocument, parseGrokWebSearchArgs, parseXSearchArgs, preferredXaiOAuthModel, preferredXaiOAuthModelFrom, probeGrokAuth, readStoredOptions, readStoredProxyUrl, registerXaiOAuthAuthRoutes, removeGrokAuthSlot, resolveNestedSearchTools, resolveStatefulResponses, resolveXaiOAuthStorePath, resolveXaiProxyUrl, safeMessage, sanitizeRejectToolEvent, sanitizeStoredOptions, setXaiProxyUrl, sniffImageMediaType, stripRejectToolCalls, wrapXaiResponsesProvider, writeGrokAuthDocument, writeStoredOptions, writeStoredProxyUrl, xaiOAuthAuthPath, xaiOAuthAuthStatus, xaiProxyPath };
+export { type CatalogSource, Config, DEFAULT_IMAGINE_MODEL, DEFAULT_SEARCH_MAX_RESULTS, DEFAULT_WEB_SEARCH_TIMEOUT_MS, DEFAULT_XAI_OAUTH_MODEL, DEFAULT_XAI_SEARCH_MODEL, DEFAULT_X_SEARCH_TIMEOUT_MS, GROK_46_MODEL, GROK_XAI_CLIENT_ID, GROK_XAI_SLOT_KEY, type GrokImportProbe, type LoginChallenge, PREFERRED_XAI_OAUTH_MODEL, type ResponseChainRecord, type ResponseChainStore, type SearchRequest, type SearchResult, type SearchSource, type StoredPluginOptions, XAI_BUILTIN_SEARCH_FUNCTION_NAMES, XAI_IMAGES_URL, XAI_MODELS_URL, XAI_OAUTH_AUTH_FILENAME, XAI_OAUTH_AUTH_IMPORT_PATH, XAI_OAUTH_AUTH_LOGIN_PATH, XAI_OAUTH_AUTH_LOGOUT_PATH, XAI_OAUTH_AUTH_MODELS_PATH, XAI_OAUTH_AUTH_OPTIONS_PATH, XAI_OAUTH_AUTH_PROXY_PATH, XAI_OAUTH_AUTH_STATUS_PATH, XAI_OAUTH_ROUTE, XAI_OAUTH_STREAM_IDLE_TIMEOUT_MS, XAI_PI_PROVIDER, XAI_RESPONSES_URL, XAI_SERVER_X_SEARCH_REJECT_NAMES, type XaiOAuthAuthStatus, XaiOAuthCredentialStore, XaiOAuthSearchError, XaiOAuthSearchProvider, XaiOAuthSession, type XaiOAuthTokenSource, type XaiOAuthWebAuthStatus, type XaiResponsesWrapOptions, type XaiSearchTool, apply, applyGrokImagineTool, applyGrokSearchTools, applyStatefulContinuation, applyXaiProxy, applyXaiResponsesPayload, applyXaiServerSearchRejectTools, breakStaleWriterLock, buildSearchToolPayload, capSources, catalogModels, clientInputDelta, createFileResponseChainStore, createMemoryResponseChainStore, createXaiOAuthAdapter, createXaiOAuthSearchTokenSource, extractClientInputItems, extractModelIds, fetchLiveModelIds, filterSelectedChatModelIds, fingerprintInputItem, formatGrokSearchOutput, grokAuthPath, imagineModelId, importGrokAuth, importXaiOAuthFromGrok, importXaiOAuthSession, includeForSearchTool, inject, installXaiFetchHook, isClientOriginatedInputItem, isComposerChatModel, isGrokAuthDocument, isGrokAuthPath, isPidAlive, isPreviousResponseError, isToolOutputInputItem, isUserInputItem, lockPathForAuthFile, loginXaiOAuth, loginXaiOAuthSession, logoutXaiOAuth, mapXaiSearchResponse, materializeLiveModel, mergeLiveCatalog, mergePluginOptions, name, optionsPath, parseGrokAuthDocument, parseGrokWebSearchArgs, parseLockPid, parseXSearchArgs, preferredXaiOAuthModel, preferredXaiOAuthModelFrom, probeGrokAuth, readStoredOptions, readStoredProxyUrl, registerXaiOAuthAuthRoutes, removeGrokAuthSlot, resolveNestedSearchTools, resolveStatefulResponses, resolveXaiOAuthStorePath, resolveXaiProxyUrl, safeMessage, sanitizeRejectToolEvent, sanitizeStoredOptions, setXaiProxyUrl, sniffImageMediaType, stripRejectToolCalls, wrapXaiResponsesProvider, writeGrokAuthDocument, writeStoredOptions, writeStoredProxyUrl, xaiOAuthAuthPath, xaiOAuthAuthStatus, xaiProxyPath };

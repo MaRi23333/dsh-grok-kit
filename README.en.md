@@ -40,13 +40,13 @@ The same model id does not guarantee the same experience across integrations. [x
 
 **Separate search** sends another model request to retrieve or summarize material before returning it to the main conversation. That path remains useful when explicit filters are needed, but adds another model round, and its search summary is not produced inside the current reply's Think turn.
 
-**Main-turn search** follows [xAI's server-side Responses search pattern](https://docs.x.ai/developers/tools/web-search), placing `{type:web_search}` and `{type:x_search}` directly on the main grok-4.6 request. Lookup occurs inside Think, so the model can use newly found web and X material during the same reasoning turn. The default bundle enables this path.
+**Main-turn search** follows [xAI's server-side Responses search pattern](https://docs.x.ai/developers/tools/web-search), placing `{type:web_search}` and `{type:x_search}` directly on the main grok-4.6 request. Lookup occurs inside Think, so the model can use newly found web and X material during the same reasoning turn. This path is off by default (since v0.1.8); enable it from Settings or config.
 
 To let both search systems coexist, DSH's native `web_search` remains in the host tool list but is removed from an xAI payload with fused search enabled, preventing a server-tool name collision. Other model routes can continue using the host search tool normally.
 
 > If a name such as `x_keyword_search` briefly appears in the UI, xAI has already completed that X search. The matching plugin item only lets DSH finish the current turn; it does not search again.
 
-For domain, account, or date filters, disable `backendSearch` or enable `nestedSearchTools` to use standalone `grok_web_search` / `x_search`. This is an optional mode, not the default path.
+For domain, account, or date filters, use the standalone `grok_web_search` / `x_search` tools — the default path while `backendSearch` is off; enabling `backendSearch` turns this standalone path into the optional mode.
 
 `statefulResponses` is off by default. When enabled, the plugin uses `store: true` + `previous_response_id` and appends only new user items. A previous `toolUse` turn (`x_keyword_search` stubs, bash, …) is never continued — otherwise xAI emits a second message that reprints the search writeup. A live OAuth probe could list sources on follow-up, but `cached_tokens` does not become that turn's 100k–300k search KV.
 
@@ -142,14 +142,26 @@ The “Search & feature options” card on Settings → xAI Grok can also overri
 - Proxy settings accept only `http://` or `https://` URLs without embedded credentials; legacy values containing userinfo are scrubbed and do not reach status responses or logs
 - The xAI-only fetch hook is restored when the plugin is disposed and does not permanently change system or process environment variables
 - On Windows, Node mode bits are not NTFS ACLs. Restrict the directory ACL yourself if the user profile or `$DSH_HOME` is stored in a shared location
+- The plugin's own writer lock (`$DSH_HOME/.xai-oauth-auth.json.lock`) is removed automatically when its recorded owner process is provably gone (the pid inside no longer exists); when orphanhood cannot be proven (recycled pid, another user's process) it is left untouched for manual handling
 
 ## Compatibility and limitations
 
 - Some subscription tiers may allow browser sign-in but return HTTP 403 for chat or server-side search; this is an entitlement/service-policy result, not necessarily an expired token
 - HTTP 401 is retried once after serialized refresh; 403 is not treated as token expiry
 - Running this bundle alongside another bundle that registers the same xAI OAuth route is unsupported; follow the migration steps in [INSTALL.md](INSTALL.md) and remove the conflicting bundle first
-- Backend search is the default composition, but availability still depends on the account, selected model, and xAI's current service behavior
+- Backend search is off by default and can be enabled from Settings or config; availability still depends on the account, selected model, and xAI's current service behavior
 - Removing the plugin does not delete `~/.grok/auth.json`; sign out in Settings first if the local login should be removed
+
+## Troubleshooting
+
+**Startup or chat reports `timed out waiting for the writer lock`**: a force-killed or crashed writer process left a `*.lock` file behind (lock content is the recorded owner pid). The plugin checks its own lock before every credential write: a provably dead owner is cleared automatically and the operation proceeds; when orphanhood cannot be proven (recycled pid, another user's process) the lock is left alone. Clean up by hand:
+
+1. Close all DeepSeek Harness and Grok CLI processes;
+2. Delete `.xai-oauth-auth.json.lock` under `$DSH_HOME` (default `~/.dsh`);
+3. `~/.grok/auth.json.lock` belongs to the Grok CLI — delete it only while the Grok CLI is not running;
+4. Start again.
+
+A failed startup catalog refresh (including the lock timeout above) never blocks chat: the plugin serves the cached model list and retries in the background with 5s / 30s / 120s backoff.
 
 ## Development
 

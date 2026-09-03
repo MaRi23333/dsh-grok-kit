@@ -1,9 +1,9 @@
 /**
  * xAI Grok kit for DeepSeek Harness: SuperGrok / X Premium OAuth, the
- * `xai-oauth` chat route, mixed server-side web/X search on the main
- * grok-4.6 request (`backendSearch`; on in this bundle's composition),
- * optional nested `grok_web_search` / `x_search`, `grok_imagine`, and a
- * per-plugin outbound proxy setting.
+ * `xai-oauth` chat route, optional server-side web/X search fused into the
+ * main grok-4.6 request (`backendSearch`; off by default — opt in via config
+ * or the settings page), optional nested `grok_web_search` / `x_search`,
+ * `grok_imagine`, and a per-plugin outbound proxy setting.
  *
  * Nested search tools are not registered on `ctx.web`. Native DSH
  * `web_search` stays in the host tool list; the Responses wrap strips
@@ -154,6 +154,7 @@ export {
 export type { ResponseChainRecord, ResponseChainStore } from './response-chain.ts'
 export { XaiOAuthSession } from './session.ts'
 export { XaiOAuthCredentialStore, lockPathForAuthFile, resolveXaiOAuthStorePath, xaiOAuthAuthPath } from './store.ts'
+export { breakStaleWriterLock, isPidAlive, parseLockPid } from './lock-rescue.ts'
 export {
   applyGrokSearchTools,
   applyXaiServerSearchRejectTools,
@@ -250,6 +251,8 @@ export function apply(ctx: Context, config: Config): void {
   const session = new XaiOAuthSession(new XaiOAuthCredentialStore(), () => {
     ctx.emit('llm/adapters-updated')
   })
+  // Stop the session's background catalog retry timer on plugin unload.
+  ctx.effect(() => () => session.dispose(), 'dsh-grok-kit: session retry lifecycle')
   const tokens = createXaiOAuthSearchTokenSource(session)
   const { backendSearch, nestedSearchTools } = resolveNestedSearchTools(effectiveConfig)
   const statefulResponses = resolveStatefulResponses(effectiveConfig)

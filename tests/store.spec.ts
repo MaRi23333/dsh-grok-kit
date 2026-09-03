@@ -1,4 +1,5 @@
-import { chmod, mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
+import { spawn } from 'node:child_process'
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -10,6 +11,23 @@ const files: string[] = []
 afterEach(async () => {
   files.length = 0
 })
+
+/** A pid that is definitely gone: spawn a short-lived child and wait for exit. */
+async function deadPid(): Promise<number> {
+  const child = spawn(process.execPath, ['-e', ''], { stdio: 'ignore' })
+  await new Promise<void>((resolve, reject) => {
+    child.once('exit', () => resolve())
+    child.once('error', reject)
+  })
+  return child.pid!
+}
+
+const CREDENTIAL = {
+  type: 'oauth' as const,
+  access: 'access-token',
+  refresh: 'refresh-token',
+  expires: 1_700_000_000_000,
+}
 
 async function tempStore(): Promise<XaiOAuthCredentialStore> {
   const dir = await mkdtemp(join(tmpdir(), 'dsh-xai-'))
@@ -100,6 +118,26 @@ describe('XaiOAuthCredentialStore', () => {
     expect(await store.read(XAI_PI_PROVIDER)).toBeUndefined()
     expect(await store.list()).toEqual([])
   })
+
+  it('breaks a stale writer lock left by a dead process before acquiring it', async () => {
+    const store = await tempStore()
+    const lockPath = `${store.lockFilename}.lock`
+    await writeFile(lockPath, `${await deadPid()}\n`, { mode: 0o600 })
+    await expect(store.modify(XAI_PI_PROVIDER, async () => CREDENTIAL)).resolves.toMatchObject({ access: 'access-token' })
+    await expect(readFile(lockPath, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('still times out on a writer lock whose owner is alive', async () => {
+    const store = await tempStore()
+    const lockPath = `${store.lockFilename}.lock`
+    await writeFile(lockPath, `${process.pid}\n`, { mode: 0o600 })
+    try {
+      await expect(store.modify(XAI_PI_PROVIDER, async () => CREDENTIAL))
+        .rejects.toThrow(/timed out waiting for the writer lock/)
+    } finally {
+      await rm(lockPath, { force: true })
+    }
+  }, 10_000)
 
   it('reads and writes a Grok CLI auth.json without dropping extra slot fields', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'dsh-xai-grok-store-'))

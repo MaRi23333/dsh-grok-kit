@@ -36,6 +36,16 @@ import { XaiOAuthCredentialStore } from './store.ts'
 const MODELS_CACHE_VERSION = 2
 const MODELS_CACHE_FILENAME = '.xai-oauth-models.json'
 
+/**
+ * Background retry cadence after a failed live-catalog refresh (credential
+ * resolution or listing). The first retry exists for the leftover-writer-lock
+ * incident: a stale lock that cannot be proven orphaned (recycled pid, foreign
+ * owner) wedges the startup refresh for its 2s wait budget, and the next try
+ * succeeds once the holder is gone. Sized to stay quiet: three attempts over
+ * ~2.5 minutes, then give up until the next explicit trigger.
+ */
+const CATALOG_RETRY_DELAYS_MS = [5_000, 30_000, 120_000]
+
 interface ModelsCacheDocument {
   version: typeof MODELS_CACHE_VERSION
   ids: string[]
@@ -115,10 +125,15 @@ export class XaiOAuthSession {
   private readonly cacheFile: string
   private onCatalogChange: (() => void) | undefined
   private cachedProvider: Provider | undefined
+  private readonly catalogRetryDelaysMs: readonly number[]
+  private catalogRetryTimer: ReturnType<typeof setTimeout> | undefined
+  private catalogRetryAttempt = 0
+  private disposed = false
 
   constructor(
     store: XaiOAuthCredentialStore = new XaiOAuthCredentialStore(),
     onCatalogChange?: () => void,
+    options: { catalogRetryDelaysMs?: readonly number[] } = {},
   ) {
     this.store = store
     this.cacheFile = modelsCachePath()
@@ -126,6 +141,7 @@ export class XaiOAuthSession {
     this.models = createModels({ credentials: store })
     this.models.setProvider(this.baseline)
     this.onCatalogChange = onCatalogChange
+    this.catalogRetryDelaysMs = options.catalogRetryDelaysMs ?? CATALOG_RETRY_DELAYS_MS
   }
 
   setWrapOptions(next: XaiResponsesWrapOptions): void {
@@ -136,6 +152,42 @@ export class XaiOAuthSession {
 
   private invalidateProvider(): void {
     this.cachedProvider = undefined
+  }
+
+  /**
+   * Schedule the next background catalog retry after a failed refresh. Only
+   * while a credential file exists — a logged-out store cannot succeed — and
+   * with an unref'd timer so the CLI one-shots (bin.ts) still exit on time.
+   * The retry reuses `refreshLiveCatalog`, so a stale lock that broke the
+   * startup attempt is re-examined (and broken when provably orphaned).
+   */
+  private scheduleCatalogRetry(signal?: AbortSignal): void {
+    if (this.disposed || signal?.aborted) return
+    if (this.catalogRetryTimer !== undefined) return
+    if (this.catalogRetryAttempt >= this.catalogRetryDelaysMs.length) return
+    if (!this.store.exists()) return
+    const delay = this.catalogRetryDelaysMs[this.catalogRetryAttempt]!
+    this.catalogRetryAttempt += 1
+    this.catalogRetryTimer = setTimeout(() => {
+      this.catalogRetryTimer = undefined
+      void this.refreshLiveCatalog(signal)
+    }, delay)
+    this.catalogRetryTimer.unref?.()
+  }
+
+  /** Cancel a pending retry and restart the backoff episode from zero. */
+  private clearCatalogRetry(): void {
+    if (this.catalogRetryTimer !== undefined) {
+      clearTimeout(this.catalogRetryTimer)
+      this.catalogRetryTimer = undefined
+    }
+    this.catalogRetryAttempt = 0
+  }
+
+  /** Stop background catalog retries; pending refreshes may still finish. */
+  dispose(): void {
+    this.disposed = true
+    this.clearCatalogRetry()
   }
 
   /** Secret-free listing diagnostic from the last refresh. */
@@ -218,9 +270,14 @@ export class XaiOAuthSession {
     } catch (error) {
       this.listingError = safeMessage(error instanceof Error ? error.message : String(error))
       if (this.liveIds === undefined) this.source = 'fallback'
+      this.scheduleCatalogRetry(signal)
       if (access === undefined) return
     }
     if (access === undefined || access.length === 0) {
+      // Nothing to refresh (logged out, or an empty Grok document): stop any
+      // retry episode started earlier instead of spinning on a store that
+      // cannot succeed.
+      this.clearCatalogRetry()
       this.listingError = undefined
       return
     }
@@ -231,10 +288,12 @@ export class XaiOAuthSession {
       this.listingError = undefined
       await this.writeCache()
       this.invalidateProvider()
+      this.clearCatalogRetry()
       this.onCatalogChange?.()
     } catch (error) {
       this.listingError = safeMessage(error instanceof Error ? error.message : String(error))
       if (this.liveIds === undefined) this.source = 'fallback'
+      this.scheduleCatalogRetry(signal)
     }
   }
 
@@ -247,6 +306,7 @@ export class XaiOAuthSession {
   }
 
   async logout(): Promise<void> {
+    this.clearCatalogRetry()
     await this.store.delete(XAI_PI_PROVIDER)
     this.liveIds = undefined
     this.selectedIds = undefined

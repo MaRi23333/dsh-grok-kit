@@ -18,6 +18,7 @@ import { dirname, join, resolve } from 'node:path'
 import type { Credential, CredentialInfo, CredentialStore, OAuthCredential } from '@earendil-works/pi-ai'
 import { withFileLock, writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import { resolveDshHome } from '@deepseek-ai/dsh-home-paths'
+import { breakStaleWriterLock } from './lock-rescue.ts'
 import {
   grokAuthPath,
   isGrokAuthDocument,
@@ -219,6 +220,29 @@ export class XaiOAuthCredentialStore implements CredentialStore {
     return existsSync(this.filename)
   }
 
+  /**
+   * Break a writer lock whose recorded owner process is provably dead.
+   * dsh-atomic-write leaves orphan recovery to operators by design (lock age
+   * cannot distinguish a crashed owner from a paused writer), but a lock pid
+   * that no longer exists (kill(pid, 0) → ESRCH) is proof enough for this
+   * plugin's own lock sibling: a force-killed host otherwise wedges every
+   * later credential write until a human deletes the file by hand. Runs
+   * before every withFileLock acquisition below; a lock that cannot be
+   * *proven* orphaned is left untouched.
+   */
+  private async clearStaleLock(): Promise<void> {
+    try {
+      const pid = await breakStaleWriterLock(`${this.lockFilename}.lock`)
+      if (pid !== undefined) {
+        console.warn(
+          `dsh-grok-kit: removed writer lock ${this.lockFilename}.lock left by dead process ${pid}; continuing normally.`,
+        )
+      }
+    } catch {
+      // Rescue must never introduce a new failure in front of the real one.
+    }
+  }
+
   async read(providerId: string): Promise<Credential | undefined> {
     return this.owns(providerId) ? this.readCurrent() : undefined
   }
@@ -231,8 +255,11 @@ export class XaiOAuthCredentialStore implements CredentialStore {
 
   /**
    * Run a read-modify-write under the cross-process writer lock.
-   * The lock's wait budget is a fixed 2s (dsh-atomic-write) and is sized for
-   * pure file I/O: `fn` MUST NOT perform network work inside the lock.
+   * A leftover lock whose recorded owner is provably dead is broken before
+   * acquisition (`clearStaleLock`); one held by a live process still fails
+   * after the wait budget. That budget is a fixed 2s (dsh-atomic-write) and
+   * is sized for pure file I/O: `fn` MUST NOT perform network work inside
+   * the lock.
    * Refresh-first-then-commit flows read + refresh outside and only run the
    * guarded compare-and-write here (see createXaiOAuthSearchTokenSource).
    * pi-ai's own OAuth refresh does run inside its `modify` call — host
@@ -248,6 +275,7 @@ export class XaiOAuthCredentialStore implements CredentialStore {
     }
     await mkdir(dirname(this.filename), { recursive: true, mode: 0o700 })
     await mkdir(dirname(this.lockFilename), { recursive: true, mode: 0o700 })
+    await this.clearStaleLock()
     return withFileLock(this.lockFilename, async () => {
       const existingText = await this.readText()
       const current = existingText === undefined || existingText.trim().length === 0
@@ -281,6 +309,7 @@ export class XaiOAuthCredentialStore implements CredentialStore {
     if (!this.owns(providerId)) return
     await mkdir(dirname(this.filename), { recursive: true, mode: 0o700 })
     await mkdir(dirname(this.lockFilename), { recursive: true, mode: 0o700 })
+    await this.clearStaleLock()
     await withFileLock(this.lockFilename, async () => {
       const existingText = await this.readText()
       if (existingText === undefined) return
