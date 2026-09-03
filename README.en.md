@@ -142,7 +142,7 @@ The “Search & feature options” card on Settings → xAI Grok can also overri
 - Proxy settings accept only `http://` or `https://` URLs without embedded credentials; legacy values containing userinfo are scrubbed and do not reach status responses or logs
 - The xAI-only fetch hook is restored when the plugin is disposed and does not permanently change system or process environment variables
 - On Windows, Node mode bits are not NTFS ACLs. Restrict the directory ACL yourself if the user profile or `$DSH_HOME` is stored in a shared location
-- The plugin's own writer lock (`$DSH_HOME/.xai-oauth-auth.json.lock`) is removed automatically when its recorded owner process is provably gone (the pid inside no longer exists); when orphanhood cannot be proven (recycled pid, another user's process) it is left untouched for manual handling
+- The plugin's own writer lock (`$DSH_HOME/.xai-oauth-auth.json.lock`) is removed automatically when its recorded owner process is provably gone (the pid inside no longer exists), or when it has stayed empty for over 10 seconds (the owner was killed between creating the lock and writing the pid); when orphanhood cannot be proven (recycled pid, another user's process, foreign lock format) it is left untouched for manual handling
 
 ## Compatibility and limitations
 
@@ -154,7 +154,7 @@ The “Search & feature options” card on Settings → xAI Grok can also overri
 
 ## Troubleshooting
 
-**Startup or chat reports `timed out waiting for the writer lock`**: a force-killed or crashed writer process left a `*.lock` file behind (lock content is the recorded owner pid). The plugin checks its own lock before every credential write: a provably dead owner is cleared automatically and the operation proceeds; when orphanhood cannot be proven (recycled pid, another user's process) the lock is left alone. Clean up by hand:
+**Startup or chat reports `timed out waiting for the writer lock`**: a force-killed or crashed writer process left a `*.lock` file behind (lock content is the recorded owner pid). The plugin checks its own lock before every credential write: a provably dead owner, and an empty lock older than 10 seconds (owner killed before writing the pid), are cleared automatically and the operation proceeds; when orphanhood cannot be proven (recycled pid, another user's process) the lock is left alone. Clean up by hand:
 
 1. Close all DeepSeek Harness and Grok CLI processes;
 2. Delete `.xai-oauth-auth.json.lock` under `$DSH_HOME` (default `~/.dsh`);

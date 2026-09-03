@@ -142,7 +142,7 @@ dsh plugin --profile web add github:MaRi23333/dsh-grok-kit#91266c116dd6be086cb91
 - 代理只接受不含用户名/密码的 `http://` 或 `https://` URL；带 userinfo 的旧值会被清理，不会进入状态响应或日志
 - xAI 专用 fetch hook 会在插件卸载时恢复；它不会永久修改系统或进程环境变量
 - Windows 上的 Node mode bit 不等于 NTFS ACL；如果用户目录或 `$DSH_HOME` 位于共享位置，请自行收紧目录权限
-- 插件自己的写入锁（`$DSH_HOME/.xai-oauth-auth.json.lock`）在持锁进程被证实已退出（锁内记录的 pid 不存在）时会自动清理；无法证实（pid 被复用、属于他人进程）时保持不动，交由人工处理
+- 插件自己的写入锁（`$DSH_HOME/.xai-oauth-auth.json.lock`）在持锁进程被证实已退出（锁内记录的 pid 不存在）、或超过 10 秒仍为空（进程被杀在写入 pid 之前）时会自动清理；无法证实（pid 被复用、属于他人进程、内容为外来格式）时保持不动，交由人工处理
 
 ## 兼容性与限制
 
@@ -154,7 +154,7 @@ dsh plugin --profile web add github:MaRi23333/dsh-grok-kit#91266c116dd6be086cb91
 
 ## 故障排查
 
-**启动或聊天报 `timed out waiting for the writer lock`**：某次强杀/崩溃的写入进程遗留了 `*.lock` 文件（锁文件内容是记录的持有者 pid）。本插件在每次写凭据前会检查自己的锁：持有者 pid 已不存在就自动清理后继续；pid 无法判定（如被复用、属于他人进程）时保持不动，此时手动清理：
+**启动或聊天报 `timed out waiting for the writer lock`**：某次强杀/崩溃的写入进程遗留了 `*.lock` 文件（锁文件内容是记录的持有者 pid）。本插件在每次写凭据前会检查自己的锁：持有者 pid 已不存在的锁、以及超过 10 秒仍为空的锁（进程被杀在写入 pid 之前）都会自动清理后继续；pid 无法判定（如被复用、属于他人进程）时保持不动，此时手动清理：
 
 1. 关闭所有 DeepSeek Harness 与 Grok CLI 进程；
 2. 删除 `$DSH_HOME`（默认 `~/.dsh`）下的 `.xai-oauth-auth.json.lock`；

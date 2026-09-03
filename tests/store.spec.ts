@@ -1,8 +1,9 @@
 import { spawn } from 'node:child_process'
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
+import { EMPTY_LOCK_GRACE_MS } from '../src/lock-rescue.ts'
 import { XAI_OAUTH_ROUTE, XAI_PI_PROVIDER } from '../src/ids.ts'
 import { lockPathForAuthFile, resolveXaiOAuthStorePath, XaiOAuthCredentialStore } from '../src/store.ts'
 
@@ -123,6 +124,16 @@ describe('XaiOAuthCredentialStore', () => {
     const store = await tempStore()
     const lockPath = `${store.lockFilename}.lock`
     await writeFile(lockPath, `${await deadPid()}\n`, { mode: 0o600 })
+    await expect(store.modify(XAI_PI_PROVIDER, async () => CREDENTIAL)).resolves.toMatchObject({ access: 'access-token' })
+    await expect(readFile(lockPath, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('breaks a stale empty writer lock (owner died before writing the pid)', async () => {
+    const store = await tempStore()
+    const lockPath = `${store.lockFilename}.lock`
+    await writeFile(lockPath, '', { mode: 0o600 })
+    const when = new Date(Date.now() - (EMPTY_LOCK_GRACE_MS + 1_000))
+    await utimes(lockPath, when, when)
     await expect(store.modify(XAI_PI_PROVIDER, async () => CREDENTIAL)).resolves.toMatchObject({ access: 'access-token' })
     await expect(readFile(lockPath, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
   })

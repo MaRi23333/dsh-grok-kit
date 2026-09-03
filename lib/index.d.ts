@@ -173,10 +173,11 @@ declare class XaiOAuthCredentialStore implements CredentialStore {
   /** Cheap synchronous file-existence check; never refreshes or reads secrets. */
   exists(): boolean;
   /**
-   * Break a writer lock whose recorded owner process is provably dead.
-   * dsh-atomic-write leaves orphan recovery to operators by design (lock age
-   * cannot distinguish a crashed owner from a paused writer), but a lock pid
-   * that no longer exists (kill(pid, 0) → ESRCH) is proof enough for this
+   * Break a writer lock that is provably orphaned: its recorded pid is dead
+   * (kill(pid, 0) → ESRCH), or it is empty past the grace window (owner died
+   * between create and pid write). dsh-atomic-write leaves orphan recovery
+   * to operators by design (lock age cannot distinguish a crashed owner from
+   * a paused writer), but these two shapes are proof enough for this
    * plugin's own lock sibling: a force-killed host otherwise wedges every
    * later credential write until a human deletes the file by hand. Runs
    * before every withFileLock acquisition below; a lock that cannot be
@@ -520,38 +521,20 @@ declare class XaiOAuthSearchProvider {
 }
 //#endregion
 //#region src/lock-rescue.d.ts
-/**
- * `@deepseek-ai/dsh-atomic-write` deliberately never removes a lock it did
- * not create: lock-file age cannot distinguish a crashed owner from a paused
- * live writer, so orphan recovery is left to the operator. In practice that
- * operator action never happens until something breaks: a force-killed host
- * leaves `<file>.lock` behind and every later writer of the credential file
- * times out until a human notices. This happened three times in the field
- * (`.grok/auth.json.lock` via the Grok CLI, then `.dsh/.xai-oauth-auth.json.lock`
- * for this plugin), which is why the plugin now proves orphanhood itself.
- *
- * Proof standard: a dsh-atomic-write lock contains exactly `${process.pid}\n`,
- * and `process.kill(pid, 0)` failing with `ESRCH` means that pid no longer
- * exists. A dead owner cannot release its critical section later, so removing
- * the lock cannot race a live writer — with one exception: a contender that
- * broke the same stale lock and was handed it fresh between our two reads.
- * `breakStaleWriterLock` re-reads the content immediately before unlinking
- * and aborts on any change, closing that window to a single read→rm pair.
- * Anything short of proof — unparsable content, a recycled pid, an
- * `EPERM`/`EACCES` from a foreign-owner process — is left untouched for the
- * operator, never guessed.
- */
 /** Extract the owner pid from dsh-atomic-write lock content (`${pid}\n`). */
 declare function parseLockPid(text: string): number | undefined;
 /** Whether `pid` is running: `true` alive, `false` provably dead, `undefined` unknown. */
 declare function isPidAlive(pid: number): boolean | undefined;
 /**
- * Remove the writer lock at `lockPath` when its recorded owner is provably
- * dead. Returns the dead owner's pid when the lock file was removed, and
- * `undefined` when there was nothing to do or orphanhood could not be proven
- * (missing/unparsable lock, live or unknown owner, content changed between
- * the two reads, unlink refused). Never throws: rescue must not add a new
- * failure in front of the operation that follows it.
+ * Remove the writer lock at `lockPath` when its owner is provably gone:
+ * a recorded pid that no longer exists, or an empty lock older than
+ * {@link EMPTY_LOCK_GRACE_MS} (owner died between create and pid write).
+ * Returns the dead owner's pid (or `0` for the empty-lock shape) when the
+ * lock file was removed, and `undefined` when there was nothing to do or
+ * orphanhood could not be proven (missing/unparsable lock, live or unknown
+ * owner, content changed between the two reads, unlink refused). Never
+ * throws: rescue must not add a new failure in front of the operation that
+ * follows it.
  */
 declare function breakStaleWriterLock(lockPath: string): Promise<number | undefined>;
 //#endregion
