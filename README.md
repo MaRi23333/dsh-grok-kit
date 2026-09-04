@@ -95,7 +95,7 @@ npx @deepseek-ai/dsh web
 
 如果这个 profile 以前安装的是 GitHub 来源，可先尝试 `dsh plugin --profile web add dsh-grok-kit@latest`；若来源没有切换，先移除旧包再重新添加。
 
-需要固定到可复现的 Git 提交时，可使用：
+需要固定到可复现的 Git 提交时，可使用（不带 SHA 的 `github:MaRi23333/dsh-grok-kit` 跟随 `main`，不是可复现锚点）：
 
 ```sh
 dsh plugin --profile web add github:MaRi23333/dsh-grok-kit#91266c116dd6be086cb91c51e225c1d3d9578562
@@ -142,7 +142,7 @@ dsh plugin --profile web add github:MaRi23333/dsh-grok-kit#91266c116dd6be086cb91
 - 代理只接受不含用户名/密码的 `http://` 或 `https://` URL；带 userinfo 的旧值会被清理，不会进入状态响应或日志
 - xAI 专用 fetch hook 会在插件卸载时恢复；它不会永久修改系统或进程环境变量
 - Windows 上的 Node mode bit 不等于 NTFS ACL；如果用户目录或 `$DSH_HOME` 位于共享位置，请自行收紧目录权限
-- 插件自己的写入锁（`$DSH_HOME/.xai-oauth-auth.json.lock`）仅在锁内容精确为 `${pid}\n` 且该 pid 已不存在时自动清理（先原子改名再删隔离文件，避免误删继任锁）。空锁、多行或外来格式（含 Grok CLI 的 `pid:timestamp`）一律不动，交由人工处理——文件年龄不能证明活写者已死
+- 插件自己的写入锁（`$DSH_HOME/.xai-oauth-auth.json.lock`）**从不自动删除或改名**。路径上的检查-再-rename/rm 无法绑定已检查的文件代次，可能把活 writer 的锁移走。残留锁 fail-closed（写入超时），交由人工处理
 
 ## 兼容性与限制
 
@@ -155,7 +155,7 @@ dsh plugin --profile web add github:MaRi23333/dsh-grok-kit#91266c116dd6be086cb91
 
 ## 故障排查
 
-**启动或聊天报 `timed out waiting for the writer lock`**：某次强杀/崩溃的写入进程遗留了 `*.lock` 文件。本插件在每次写凭据前会检查自己的锁：仅当内容精确为 `${pid}\n` 且该 pid 已不存在时自动清理；空锁（可能是尚未写入 pid 的活写者）和无法解析的内容保持不动。pid 无法判定（如被复用、属于他人进程）时同样不动，此时手动清理：
+**启动或聊天报 `timed out waiting for the writer lock`**：某次强杀/崩溃的写入进程遗留了 `*.lock` 文件。本插件 **不会自动清锁**（避免误移走活 writer 的锁）。请手动清理：
 
 1. 关闭所有 DeepSeek Harness 与 Grok CLI 进程；
 2. 删除 `$DSH_HOME`（默认 `~/.dsh`）下的 `.xai-oauth-auth.json.lock`；

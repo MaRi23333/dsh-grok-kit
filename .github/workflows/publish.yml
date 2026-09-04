@@ -65,6 +65,9 @@ jobs:
       - name: Install (frozen lockfile, no lifecycle scripts)
         run: npm ci --ignore-scripts
 
+      - name: Dependency tree is complete
+        run: npm ls --all
+
       - name: Typecheck
         run: npm run typecheck
 
@@ -93,6 +96,11 @@ jobs:
           test ! -e "$package_dir/package/.github"
           test ! -e "$package_dir/package/tests"
           rm "$package_file"
+
+      - name: Isolated pack-install smoke
+        run: |
+          npm install -g @deepseek-ai/dsh@0.1.2-rc.1
+          node scripts/pack-install-smoke.mjs
 
       - name: Publish to npm
         run: npm publish --ignore-scripts --access public

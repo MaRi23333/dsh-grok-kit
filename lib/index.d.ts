@@ -172,21 +172,15 @@ declare class XaiOAuthCredentialStore implements CredentialStore {
   private owns;
   /** Cheap synchronous file-existence check; never refreshes or reads secrets. */
   exists(): boolean;
-  /**
-   * Break a writer lock whose recorded pid is provably gone. Empty locks and
-   * foreign/unparsable documents are left for the operator — age is not proof
-   * that a paused live writer died. Rescue renames the candidate off the
-   * original path before unlinking so a successor lock is never deleted.
-   */
-  private clearStaleLock;
   read(providerId: string): Promise<Credential | undefined>;
   list(): Promise<readonly CredentialInfo[]>;
   /**
    * Run a read-modify-write under the cross-process writer lock.
-   * A leftover lock whose recorded owner is provably dead is broken before
-   * acquisition (`clearStaleLock`); one held by a live process still fails
-   * after the wait budget. That budget is a fixed 2s (dsh-atomic-write) and
-   * is sized for pure file I/O: `fn` MUST NOT perform network work inside
+   * Leftover locks are fail-closed: this store never deletes or renames a
+   * `.lock` sibling (path-based rescue can steal a live writer's lock).
+   * A lock still present after the wait budget fails. That budget is a
+   * fixed 2s (dsh-atomic-write) and is sized for pure file I/O: `fn` MUST
+   * NOT perform network work inside
    * the lock.
    * Refresh-first-then-commit flows read + refresh outside and only run the
    * guarded compare-and-write here (see createXaiOAuthSearchTokenSource).
@@ -542,50 +536,23 @@ declare class XaiOAuthSearchProvider {
 }
 //#endregion
 //#region src/lock-rescue.d.ts
-/** Filesystem operations used by rescue; tests inject a wrapper to interleave a successor writer. */
-interface WriterLockIo {
-  readFile(path: string): Promise<string>;
-  rename(from: string, to: string): Promise<void>;
-  copyFile(from: string, to: string, flags: number): Promise<void>;
-  rm(path: string): Promise<void>;
-}
 /**
- * `@deepseek-ai/dsh-atomic-write` deliberately never removes a lock it did
- * not create: lock-file age cannot distinguish a crashed owner from a paused
- * live writer, so orphan recovery is left to the operator. In practice a
- * force-killed host leaves `<file>.lock` behind and every later writer of
- * the credential file times out until a human notices. This plugin proves
- * orphanhood itself — but only for the one shape that is actually proof:
- * a lock whose entire contents are exactly `${pid}\n` and that pid is gone.
- *
- * Empty locks are never auto-removed. File age cannot prove the creator is
- * dead: a live writer may pause, sleep, or sit in a debugger after the `wx`
- * create and before writing the pid. Those locks stay for the operator.
- *
- * Deletion never targets the original path after the liveness check. The
- * candidate is atomically renamed to a unique sibling; only that isolated
- * file is re-read and unlinked. A successor that created a new lock at the
- * original path is therefore not in the unlink set. If the isolated contents
- * no longer match the inspected dead-pid document, the isolate is copied
- * back with `COPYFILE_EXCL` (never overwriting a new lock) and left for
- * the operator if the original path is already taken.
- *
- * Anything short of proof — unparsable content (Grok CLI `pid:timestamp`,
- * extra lines, missing trailing newline, surrounding whitespace), a recycled
- * pid, `EPERM`/`EACCES`, rename refused, isolate changed — is left untouched.
+ * Writer-lock helpers. Automatic stale-lock recovery is intentionally a
+ * no-op: any check-then-rename/rm on a path can move a live writer's lock
+ * that appeared after the inspection (GROK-WRITER-LOCK-002). Orphan `.lock`
+ * files are fail-closed — writers time out — and left for the operator.
+ * @module dsh-grok-kit/lock-rescue
  */
 /** Extract the owner pid from a dsh-atomic-write lock (`${pid}\n` and nothing else). */
 declare function parseLockPid(text: string): number | undefined;
 /** Whether `pid` is running: `true` alive, `false` provably dead, `undefined` unknown. */
 declare function isPidAlive(pid: number): boolean | undefined;
 /**
- * Remove the writer lock at `lockPath` when its owner is a recorded pid that
- * no longer exists. Returns that pid when the isolated lock file was removed,
- * and `undefined` when there was nothing to do or orphanhood could not be
- * proven. Never throws: rescue must not add a new failure in front of the
- * operation that follows it.
+ * Do not break writer locks. Path-based recovery cannot bind the inspected
+ * file generation to the directory entry, so this never mutates `lockPath`
+ * or creates `.stale-*` siblings. Returns `undefined` always.
  */
-declare function breakStaleWriterLock(lockPath: string, io?: WriterLockIo): Promise<number | undefined>;
+declare function breakStaleWriterLock(_lockPath: string): Promise<number | undefined>;
 //#endregion
 //#region src/tools.d.ts
 /** Default upper bound on returned sources per call. */

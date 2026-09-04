@@ -95,7 +95,7 @@ npx @deepseek-ai/dsh web
 
 If this profile previously used the GitHub source, first try `dsh plugin --profile web add dsh-grok-kit@latest`. If the source does not switch, remove the old package and add it again.
 
-For a reproducible Git install, pin a full commit:
+For a reproducible Git install, pin a full commit (`github:MaRi23333/dsh-grok-kit` without a SHA follows `main` and is not a reproducible pin):
 
 ```sh
 dsh plugin --profile web add github:MaRi23333/dsh-grok-kit#91266c116dd6be086cb91c51e225c1d3d9578562
@@ -142,7 +142,7 @@ The “Search & feature options” card on Settings → xAI Grok can also overri
 - Proxy settings accept only `http://` or `https://` URLs without embedded credentials; legacy values containing userinfo are scrubbed and do not reach status responses or logs
 - The xAI-only fetch hook is restored when the plugin is disposed and does not permanently change system or process environment variables
 - On Windows, Node mode bits are not NTFS ACLs. Restrict the directory ACL yourself if the user profile or `$DSH_HOME` is stored in a shared location
-- The plugin's own writer lock (`$DSH_HOME/.xai-oauth-auth.json.lock`) is removed automatically only when its contents are exactly `${pid}\n` and that pid is gone (atomic rename, then unlink the isolated file, so a successor lock is never deleted). Empty locks, extra lines, and foreign formats (including the Grok CLI `pid:timestamp` document) are left for manual handling — file age is not proof that a live writer died
+- The plugin's own writer lock (`$DSH_HOME/.xai-oauth-auth.json.lock`) is **never deleted or renamed automatically**. A path-based check-then-rename/rm cannot bind the inspected file generation and can move a live writer's lock. Leftover locks are fail-closed (writers time out) and left for the operator
 
 ## Compatibility and limitations
 
@@ -155,7 +155,7 @@ The “Search & feature options” card on Settings → xAI Grok can also overri
 
 ## Troubleshooting
 
-**Startup or chat reports `timed out waiting for the writer lock`**: a force-killed or crashed writer process left a `*.lock` file behind. The plugin checks its own lock before every credential write: only an exact `${pid}\n` document whose pid is gone is cleared automatically. Empty locks (which may still belong to a live writer that has not written the pid yet) and unparsable content are left alone. When orphanhood cannot be proven (recycled pid, another user's process) the lock is also left alone. Clean up by hand:
+**Startup or chat reports `timed out waiting for the writer lock`**: a force-killed or crashed writer process left a `*.lock` file behind. This plugin **does not auto-clear locks** (doing so can steal a live writer's lock). Clean up by hand:
 
 1. Close all DeepSeek Harness and Grok CLI processes;
 2. Delete `.xai-oauth-auth.json.lock` under `$DSH_HOME` (default `~/.dsh`);

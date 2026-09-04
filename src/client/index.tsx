@@ -8,7 +8,7 @@
 
 /** Browser half: xAI Grok account management inside dsh Settings. */
 
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
@@ -23,10 +23,30 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
   }
 }
 
+/** Host injects `slots` from dsh-client-ui-slots; we only need this surface. */
+declare module '@deepseek-ai/cordis' {
+  interface Context {
+    slots: {
+      inject(name: string, setup: () => (() => void) | void): void
+      entries(name: string): readonly unknown[]
+      register(
+        spec: {
+          name: string
+          id: string
+          order: number
+          label: () => string
+          inject: () => XaiOAuthSettingsInjected
+        },
+        component: unknown,
+      ): () => void
+    }
+  }
+}
+
 export const name = 'dsh-grok-kit-client'
 export const inject = ['slots', 'locale']
 
-export function apply(ctx: ClientContext): void {
+export function apply(ctx: Context): void {
   const namespace = 'settings.xai-oauth'
   ctx.effect(() => {
     try {

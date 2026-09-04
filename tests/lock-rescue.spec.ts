@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { copyFile, mkdtemp, readFile, readdir, rename, rm, utimes, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, readdir, rm, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -13,7 +13,6 @@ afterEach(async () => {
   await Promise.all(cleanup.map(path => rm(path, { recursive: true, force: true })))
 })
 
-/** A pid that is definitely gone: spawn a short-lived child and wait for exit. */
 async function deadPid(): Promise<number> {
   const child = spawn(process.execPath, ['-e', ''], { stdio: 'ignore' })
   await new Promise<void>((resolve, reject) => {
@@ -65,27 +64,22 @@ describe('breakStaleWriterLock', () => {
     return join(dir, 'auth.json.lock')
   }
 
-  it('is a no-op when the lock file is missing', async () => {
-    const lockPath = join(tmpdir(), `dsh-xai-lock-missing-${Date.now()}.lock`)
-    await expect(breakStaleWriterLock(lockPath)).resolves.toBeUndefined()
-  })
-
-  it('removes a lock whose recorded owner process is gone', async () => {
+  it('never removes a lock whose recorded owner is gone', async () => {
     const lockPath = await tempLockPath()
     const pid = await deadPid()
     await writeFile(lockPath, `${pid}\n`, { mode: 0o600 })
-    await expect(breakStaleWriterLock(lockPath)).resolves.toBe(pid)
-    await expect(readFile(lockPath, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+    await expect(breakStaleWriterLock(lockPath)).resolves.toBeUndefined()
+    expect(await readFile(lockPath, 'utf8')).toBe(`${pid}\n`)
   })
 
-  it('leaves a lock owned by a live process alone', async () => {
+  it('never removes a lock owned by a live process', async () => {
     const lockPath = await tempLockPath()
     await writeFile(lockPath, `${process.pid}\n`, { mode: 0o600 })
     await expect(breakStaleWriterLock(lockPath)).resolves.toBeUndefined()
     expect(await readFile(lockPath, 'utf8')).toBe(`${process.pid}\n`)
   })
 
-  it('does not evict a live writer that paused past any age threshold with an empty lock', async () => {
+  it('never removes an empty lock, even when old', async () => {
     const lockPath = await tempLockPath()
     await writeFile(lockPath, '', { mode: 0o600 })
     const when = new Date(Date.now() - 60_000)
@@ -94,22 +88,7 @@ describe('breakStaleWriterLock', () => {
     expect(await readFile(lockPath, 'utf8')).toBe('')
   })
 
-  it('leaves a lock with unparsable content for the operator', async () => {
-    const lockPath = await tempLockPath()
-    await writeFile(lockPath, '{"grok":"cli"}\n', { mode: 0o600 })
-    await expect(breakStaleWriterLock(lockPath)).resolves.toBeUndefined()
-    expect(await readFile(lockPath, 'utf8')).toBe('{"grok":"cli"}\n')
-  })
-
-  it('leaves a foreign pid:timestamp lock (Grok CLI format) for the operator', async () => {
-    const lockPath = await tempLockPath()
-    const content = '15016:1788411457'
-    await writeFile(lockPath, content, { mode: 0o600 })
-    await expect(breakStaleWriterLock(lockPath)).resolves.toBeUndefined()
-    expect(await readFile(lockPath, 'utf8')).toBe(content)
-  })
-
-  it('leaves multiline pid-like content for the operator', async () => {
+  it('never removes foreign or multiline content', async () => {
     const lockPath = await tempLockPath()
     const pid = await deadPid()
     const content = `${pid}\n${pid}\n`
@@ -118,31 +97,13 @@ describe('breakStaleWriterLock', () => {
     expect(await readFile(lockPath, 'utf8')).toBe(content)
   })
 
-  it('stays harmless when two contenders break the same stale lock', async () => {
+  it('does not steal a lock replaced by a live writer after a stale observation (GROK-WRITER-LOCK-002)', async () => {
     const lockPath = await tempLockPath()
     const pid = await deadPid()
     await writeFile(lockPath, `${pid}\n`, { mode: 0o600 })
-    const results = await Promise.all([
-      breakStaleWriterLock(lockPath),
-      breakStaleWriterLock(lockPath),
-    ])
-    expect(results.some(result => result === pid)).toBe(true)
-    await expect(readFile(lockPath, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
-  })
-
-  it('does not delete a successor lock created at the original path after rename', async () => {
-    const lockPath = await tempLockPath()
-    const pid = await deadPid()
-    await writeFile(lockPath, `${pid}\n`, { mode: 0o600 })
-    await expect(breakStaleWriterLock(lockPath, {
-      readFile: path => readFile(path, 'utf8'),
-      copyFile,
-      rm: path => rm(path, { force: true }),
-      rename: async (from, to) => {
-        await rename(from, to)
-        await writeFile(lockPath, `${process.pid}\n`, { mode: 0o600 })
-      },
-    })).resolves.toBe(pid)
+    await expect(breakStaleWriterLock(lockPath)).resolves.toBeUndefined()
+    await writeFile(lockPath, `${process.pid}\n`, { mode: 0o600 })
+    await expect(breakStaleWriterLock(lockPath)).resolves.toBeUndefined()
     expect(await readFile(lockPath, 'utf8')).toBe(`${process.pid}\n`)
     const leftovers = (await readdir(join(lockPath, '..'))).filter(name => name.includes('.stale-'))
     expect(leftovers).toEqual([])

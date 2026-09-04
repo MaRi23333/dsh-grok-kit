@@ -6,7 +6,7 @@
 
 ## 先决条件
 
-- PATH 上有 DeepSeek Harness 的 `dsh`（0.1.1-rc.2 或更新）
+- PATH 上有 DeepSeek Harness 的 `dsh`（**0.1.2-rc.1**；本插件不声称支持 0.1.1）
 - xAI 允许走 OAuth API 的 SuperGrok 或 X Premium 账号
 - 能打开浏览器完成 device-code 授权
 
@@ -37,6 +37,8 @@ dsh plugin --profile web add dsh-grok-kit@latest
 ```sh
 dsh plugin --profile web add github:MaRi23333/dsh-grok-kit#91266c116dd6be086cb91c51e225c1d3d9578562
 ```
+
+不带 SHA 的 `github:MaRi23333/dsh-grok-kit` 会跟随 `main`，**不是**可复现锚点。
 
 本地检出目录也可以直接装：
 

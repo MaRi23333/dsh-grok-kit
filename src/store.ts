@@ -18,7 +18,6 @@ import { dirname, join, resolve } from 'node:path'
 import type { Credential, CredentialInfo, CredentialStore, OAuthCredential } from '@earendil-works/pi-ai'
 import { withFileLock, writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import { resolveDshHome } from '@deepseek-ai/dsh-home-paths'
-import { breakStaleWriterLock } from './lock-rescue.ts'
 import {
   grokAuthPath,
   isGrokAuthDocument,
@@ -220,25 +219,6 @@ export class XaiOAuthCredentialStore implements CredentialStore {
     return existsSync(this.filename)
   }
 
-  /**
-   * Break a writer lock whose recorded pid is provably gone. Empty locks and
-   * foreign/unparsable documents are left for the operator — age is not proof
-   * that a paused live writer died. Rescue renames the candidate off the
-   * original path before unlinking so a successor lock is never deleted.
-   */
-  private async clearStaleLock(): Promise<void> {
-    try {
-      const pid = await breakStaleWriterLock(`${this.lockFilename}.lock`)
-      if (pid !== undefined) {
-        console.warn(
-          `dsh-grok-kit: removed writer lock ${this.lockFilename}.lock left by dead process ${pid}; continuing normally.`,
-        )
-      }
-    } catch {
-      // Rescue must never introduce a new failure in front of the real one.
-    }
-  }
-
   async read(providerId: string): Promise<Credential | undefined> {
     return this.owns(providerId) ? this.readCurrent() : undefined
   }
@@ -251,10 +231,11 @@ export class XaiOAuthCredentialStore implements CredentialStore {
 
   /**
    * Run a read-modify-write under the cross-process writer lock.
-   * A leftover lock whose recorded owner is provably dead is broken before
-   * acquisition (`clearStaleLock`); one held by a live process still fails
-   * after the wait budget. That budget is a fixed 2s (dsh-atomic-write) and
-   * is sized for pure file I/O: `fn` MUST NOT perform network work inside
+   * Leftover locks are fail-closed: this store never deletes or renames a
+   * `.lock` sibling (path-based rescue can steal a live writer's lock).
+   * A lock still present after the wait budget fails. That budget is a
+   * fixed 2s (dsh-atomic-write) and is sized for pure file I/O: `fn` MUST
+   * NOT perform network work inside
    * the lock.
    * Refresh-first-then-commit flows read + refresh outside and only run the
    * guarded compare-and-write here (see createXaiOAuthSearchTokenSource).
@@ -271,7 +252,6 @@ export class XaiOAuthCredentialStore implements CredentialStore {
     }
     await mkdir(dirname(this.filename), { recursive: true, mode: 0o700 })
     await mkdir(dirname(this.lockFilename), { recursive: true, mode: 0o700 })
-    await this.clearStaleLock()
     return withFileLock(this.lockFilename, async () => {
       const existingText = await this.readText()
       const current = existingText === undefined || existingText.trim().length === 0
@@ -305,7 +285,6 @@ export class XaiOAuthCredentialStore implements CredentialStore {
     if (!this.owns(providerId)) return
     await mkdir(dirname(this.filename), { recursive: true, mode: 0o700 })
     await mkdir(dirname(this.lockFilename), { recursive: true, mode: 0o700 })
-    await this.clearStaleLock()
     await withFileLock(this.lockFilename, async () => {
       const existingText = await this.readText()
       if (existingText === undefined) return

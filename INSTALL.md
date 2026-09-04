@@ -6,7 +6,7 @@ Idempotent runbook for humans and automation agents.
 
 ## Prerequisites
 
-- DeepSeek Harness `dsh` on PATH (0.1.1-rc.2 or newer); a source checkout that runs `pnpm dsh` works too
+- DeepSeek Harness `dsh` on PATH (**0.1.2-rc.1**; this plugin does not claim 0.1.1); a source checkout that runs `pnpm dsh` works too
 - A SuperGrok or X Premium account that xAI allows on the OAuth API
 - A browser you can use to approve the device-code login
 
@@ -37,6 +37,8 @@ For a reproducible install, pin a full Git commit:
 ```sh
 dsh plugin --profile web add github:MaRi23333/dsh-grok-kit#91266c116dd6be086cb91c51e225c1d3d9578562
 ```
+
+`github:MaRi23333/dsh-grok-kit` without a SHA follows `main` and is **not** a reproducible pin.
 
 A local checkout can be installed by path instead:
 

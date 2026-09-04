@@ -119,13 +119,18 @@ describe('XaiOAuthCredentialStore', () => {
     expect(await store.list()).toEqual([])
   })
 
-  it('breaks a stale writer lock left by a dead process before acquiring it', async () => {
+  it('times out on a leftover lock whose recorded owner is gone (fail-closed, no auto-rescue)', async () => {
     const store = await tempStore()
     const lockPath = `${store.lockFilename}.lock`
     await writeFile(lockPath, `${await deadPid()}\n`, { mode: 0o600 })
-    await expect(store.modify(XAI_PI_PROVIDER, async () => CREDENTIAL)).resolves.toMatchObject({ access: 'access-token' })
-    await expect(readFile(lockPath, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
-  })
+    try {
+      await expect(store.modify(XAI_PI_PROVIDER, async () => CREDENTIAL))
+        .rejects.toThrow(/timed out waiting for the writer lock/)
+      expect(await readFile(lockPath, 'utf8')).toMatch(/^\d+\n$/)
+    } finally {
+      await rm(lockPath, { force: true })
+    }
+  }, 10_000)
 
   it('does not treat an empty lock as an orphan even if it is old', async () => {
     const store = await tempStore()
