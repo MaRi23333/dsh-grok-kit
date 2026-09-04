@@ -32,10 +32,10 @@ dsh plugin --profile web add dsh-grok-kit@latest
 
 如果来源没有切换，先运行 `dsh plugin --profile web remove dsh-grok-kit`，再重新添加。
 
-需要可复现安装时，可固定到完整 Git 提交：
+需要可复现安装时，可固定到完整 Git 提交（v0.1.8 代码在 `2a945b9`；这不是滚动默认分支）：
 
 ```sh
-dsh plugin --profile web add github:MaRi23333/dsh-grok-kit#91266c116dd6be086cb91c51e225c1d3d9578562
+dsh plugin --profile web add github:MaRi23333/dsh-grok-kit#2a945b9a20ef97216c6759c12c3a1f4dae13d231
 ```
 
 不带 SHA 的 `github:MaRi23333/dsh-grok-kit` 会跟随 `main`，**不是**可复现锚点。
