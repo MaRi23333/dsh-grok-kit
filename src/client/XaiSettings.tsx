@@ -88,7 +88,7 @@ const logoStyle: CSSProperties = {
   borderRadius: 12,
   display: 'grid',
   placeItems: 'center',
-  background: 'linear-gradient(135deg, var(--dsw-alias-brand-primary, #1677ff), var(--dsw-alias-state-info-primary, #4f6bed))',
+  background: 'linear-gradient(135deg, var(--dsw-alias-brand-primary, #1677ff), #4f6bed)',
   color: 'white',
   fontSize: 22,
   fontWeight: 700,
@@ -109,9 +109,9 @@ const linkStyle: CSSProperties = { color: 'var(--dsw-alias-brand-primary)', word
 const listStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4, margin: 0, padding: 0, listStyle: 'none' }
 const modelRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 10, padding: '6px 10px', borderRadius: 8, color: 'var(--dsw-alias-label-primary)' }
 const modelNameStyle: CSSProperties = { fontSize: 14, fontWeight: 500 }
-const modelIdStyle: CSSProperties = { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', fontSize: 12, color: 'var(--dsw-alias-label-dimmed)' }
+const modelIdStyle: CSSProperties = { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', fontSize: 12, color: 'var(--dsw-alias-label-tertiary, #81858c)' }
 const optionRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: 'var(--dsw-alias-label-primary)', flexWrap: 'wrap' }
-const optionHintStyle: CSSProperties = { ...bodyStyle, fontSize: 12, margin: 0, color: 'var(--dsw-alias-label-dimmed)' }
+const optionHintStyle: CSSProperties = { ...bodyStyle, fontSize: 12, margin: 0, color: 'var(--dsw-alias-label-tertiary, #81858c)' }
 const optionInputStyle: CSSProperties = {
   flex: '1 1 200px',
   minHeight: 30,
@@ -129,9 +129,9 @@ const sourceBadgeStyle: CSSProperties = { ...badgeStyle, fontWeight: 600 }
 function sourceBadge(source: CatalogSource | undefined): { text: string; color: string } {
   switch (source) {
     case 'live': return { text: 'Live', color: 'var(--dsw-alias-state-success-primary, #22a06b)' }
-    case 'cache': return { text: 'Cached', color: 'var(--dsw-alias-state-info-primary, #4f6bed)' }
-    case 'fallback': return { text: 'Fallback', color: 'var(--dsw-alias-label-dimmed, #9aa0a6)' }
-    default: return { text: '—', color: 'var(--dsw-alias-label-dimmed, #9aa0a6)' }
+    case 'cache': return { text: 'Cached', color: 'var(--dsw-alias-brand-primary, #4f6bed)' }
+    case 'fallback': return { text: 'Fallback', color: 'var(--dsw-alias-label-tertiary, #81858c)' }
+    default: return { text: '—', color: 'var(--dsw-alias-label-tertiary, #81858c)' }
   }
 }
 
@@ -142,7 +142,7 @@ function dotStyle(status: AccountStatus['status']): CSSProperties {
       ? 'var(--dsw-alias-state-error-primary, #d92d20)'
       : status === 'signing-in' || status === 'loading'
         ? 'var(--dsw-alias-brand-primary, #1677ff)'
-        : 'var(--dsw-alias-label-dimmed, #9aa0a6)'
+        : 'var(--dsw-alias-label-tertiary, #81858c)'
   return { width: 9, height: 9, borderRadius: '50%', flex: '0 0 auto', background: color }
 }
 
@@ -390,7 +390,11 @@ export function XaiSettings({ t }: XaiOAuthSettingsProps) {
           </div>
         </div>
 
-        <p style={{ ...bodyStyle, fontSize: 12, color: 'var(--dsw-alias-label-dimmed)' }}>{t('unofficialNotice')}</p>
+        {/* dsh 0.1.2 repurposed --dsw-alias-label-dimmed to a near-invisible
+            tint (light: neutral-bluish-200) and removed state-info-primary;
+            the disclaimer is legally required text, so it keeps a readable
+            secondary color, and hints follow the host's tertiary convention. */}
+        <p style={{ ...bodyStyle, fontSize: 12, color: 'var(--dsw-alias-label-secondary, #61666b)' }}>{t('unofficialNotice')}</p>
 
         {status.status === 'error' ? <p style={errorStyle}>{status.message}</p> : null}
         {status.status !== 'loading' && status.sharedGrokAuth === true
