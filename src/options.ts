@@ -10,6 +10,12 @@ import { mkdirSync, readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import { resolveDshHome } from '@deepseek-ai/dsh-home-paths'
+import { DEFAULT_XAI_SEARCH_MODEL } from './search.ts'
+import {
+  DEFAULT_SEARCH_MAX_RESULTS,
+  DEFAULT_WEB_SEARCH_TIMEOUT_MS,
+  DEFAULT_X_SEARCH_TIMEOUT_MS,
+} from './tools.ts'
 
 const OPTIONS_VERSION = 1
 const OPTIONS_FILENAME = '.dsh-grok-kit-options.json'
@@ -29,6 +35,46 @@ export interface StoredPluginOptions {
   searchMaxResults?: number
   webSearchTimeoutMs?: number
   xSearchTimeoutMs?: number
+}
+
+export type OptionValueSource = 'stored' | 'cordis' | 'default'
+
+const OPTION_SOURCE_KEYS = [
+  'backendSearch',
+  'nestedSearchTools',
+  'statefulResponses',
+  'imagineTool',
+  'searchModel',
+  'searchMaxResults',
+  'webSearchTimeoutMs',
+  'xSearchTimeoutMs',
+] as const satisfies ReadonlyArray<keyof StoredPluginOptions>
+
+export interface EffectivePluginOptions {
+  backendSearch: boolean
+  nestedSearchTools: boolean
+  statefulResponses: boolean
+  imagineTool: boolean
+  searchModel: string
+  searchMaxResults: number
+  webSearchTimeoutMs: number
+  xSearchTimeoutMs: number
+}
+
+export interface PresentedPluginOptions {
+  stored: StoredPluginOptions
+  effective: EffectivePluginOptions
+  sources: Record<keyof StoredPluginOptions, OptionValueSource>
+}
+
+function optionSource(
+  key: keyof StoredPluginOptions,
+  stored: StoredPluginOptions,
+  cordis: Record<string, unknown>,
+): OptionValueSource {
+  if (stored[key] !== undefined) return 'stored'
+  if (cordis[key] !== undefined) return 'cordis'
+  return 'default'
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -110,5 +156,44 @@ export function mergePluginOptions(
     ...stored.searchMaxResults === undefined ? {} : { searchMaxResults: stored.searchMaxResults },
     ...stored.webSearchTimeoutMs === undefined ? {} : { webSearchTimeoutMs: stored.webSearchTimeoutMs },
     ...stored.xSearchTimeoutMs === undefined ? {} : { xSearchTimeoutMs: stored.xSearchTimeoutMs },
+  }
+}
+
+/**
+ * Values the settings page should show: stored override, else Cordis/profile,
+ * else schema defaults (including nestedSearchTools = !backendSearch).
+ */
+export function presentPluginOptions(
+  cordis: Record<string, unknown>,
+  stored: StoredPluginOptions,
+): PresentedPluginOptions {
+  const merged = mergePluginOptions(cordis, stored)
+  const backendSearch = typeof merged['backendSearch'] === 'boolean' ? merged['backendSearch'] : false
+  const nestedSearchTools = typeof merged['nestedSearchTools'] === 'boolean'
+    ? merged['nestedSearchTools']
+    : !backendSearch
+  const sources = {} as Record<keyof StoredPluginOptions, OptionValueSource>
+  for (const key of OPTION_SOURCE_KEYS) sources[key] = optionSource(key, stored, cordis)
+  return {
+    stored,
+    effective: {
+      backendSearch,
+      nestedSearchTools,
+      statefulResponses: typeof merged['statefulResponses'] === 'boolean' ? merged['statefulResponses'] : false,
+      imagineTool: typeof merged['imagineTool'] === 'boolean' ? merged['imagineTool'] : true,
+      searchModel: typeof merged['searchModel'] === 'string' && merged['searchModel'].trim().length > 0
+        ? merged['searchModel']
+        : DEFAULT_XAI_SEARCH_MODEL,
+      searchMaxResults: typeof merged['searchMaxResults'] === 'number'
+        ? merged['searchMaxResults']
+        : DEFAULT_SEARCH_MAX_RESULTS,
+      webSearchTimeoutMs: typeof merged['webSearchTimeoutMs'] === 'number'
+        ? merged['webSearchTimeoutMs']
+        : DEFAULT_WEB_SEARCH_TIMEOUT_MS,
+      xSearchTimeoutMs: typeof merged['xSearchTimeoutMs'] === 'number'
+        ? merged['xSearchTimeoutMs']
+        : DEFAULT_X_SEARCH_TIMEOUT_MS,
+    },
+    sources,
   }
 }

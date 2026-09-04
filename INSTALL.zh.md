@@ -85,9 +85,9 @@ Web UI：
 
 ## 搜索
 
-本 bundle 的组合把 `backendSearch` 设为 `true`。grok-4.6 会在**同一轮** Responses 里混入 xAI 服务端 `{type:web_search}` / `{type:x_search}`（界面上多半是 thinking）。dsh 原生函数 `web_search` 仍在宿主工具列表里，但会从这份 xAI payload 剥掉，避免 `Duplicate tool names: web_search`。
+本 bundle 的组合把 `backendSearch` 设为 `false`（默认关闭，可在设置页或配置中打开）。开启后，grok-4.6 会在**同一轮** Responses 里混入 xAI 服务端 `{type:web_search}` / `{type:x_search}`（界面上多半是 thinking）。dsh 原生函数 `web_search` 仍在宿主工具列表里，但会从这份 xAI payload 剥掉，避免 `Duplicate tool names: web_search`。
 
-嵌套的 `grok_web_search` / `x_search`（再开一轮 `grok-build-0.1`）**默认不注册**。只有需要 `allowed_domains` / 账号/日期过滤，或关掉 `backendSearch` 当回退时，才设 `nestedSearchTools: true`。主请求 403 会让整轮聊天失败——在插件配置里设 `backendSearch: false`。
+嵌套的 `grok_web_search` / `x_search`（再开一轮 `grok-build-0.1`）在 `backendSearch` 关闭时自动注册（`nestedSearchTools ?? !backendSearch`）。只有需要与主搜索同时使用 `allowed_domains` / 账号/日期过滤时，才设 `nestedSearchTools: true`。主请求 403 会让整轮聊天失败——在插件配置里设 `backendSearch: false`。开启主循环搜索时，`x_keyword_search` 等拒绝桩会从转发流中剥掉，不属于正常界面体验。
 
 `grok_imagine` 默认打开。当前 DSH 还不能把生成图直接显示在对话中；需要直接取得文件时，请让 Agent 把图片保存到指定目录。未指定目录时，图片会保存到 DSH 附件库。
 

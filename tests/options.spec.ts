@@ -6,16 +6,18 @@ import { mergeStoredOptionsPatch } from '../src/auth-routes.ts'
 import {
   mergePluginOptions,
   optionsPath,
+  presentPluginOptions,
   readStoredOptions,
   sanitizeStoredOptions,
   writeStoredOptions,
 } from '../src/options.ts'
+import { restoreEnv } from './restore-env.ts'
 
 const originalHome = process.env.DSH_HOME
 let dir: string | undefined
 
 afterEach(async () => {
-  process.env.DSH_HOME = originalHome
+  restoreEnv('DSH_HOME', originalHome)
   if (dir !== undefined) await rm(dir, { recursive: true, force: true })
   dir = undefined
 })
@@ -117,6 +119,23 @@ describe('sanitizeStoredOptions', () => {
         xSearchTimeoutMs: 600_001,
       },
     })).toEqual({})
+  })
+})
+
+describe('presentPluginOptions', () => {
+  it('shows Cordis backendSearch when there is no stored override (GROK-SETTINGS-001)', () => {
+    const view = presentPluginOptions({ backendSearch: true }, {})
+    expect(view.stored.backendSearch).toBeUndefined()
+    expect(view.effective.backendSearch).toBe(true)
+    expect(view.sources.backendSearch).toBe('cordis')
+    expect(view.effective.nestedSearchTools).toBe(false)
+    expect(view.sources.nestedSearchTools).toBe('default')
+  })
+
+  it('lets a stored false override a Cordis true', () => {
+    const view = presentPluginOptions({ backendSearch: true }, { backendSearch: false })
+    expect(view.effective.backendSearch).toBe(false)
+    expect(view.sources.backendSearch).toBe('stored')
   })
 })
 

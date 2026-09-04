@@ -85,9 +85,9 @@ After a successful login the plugin calls `GET /v1/models` and caches the accoun
 
 ## Search
 
-This bundle's composition sets `backendSearch: true`. grok-4.6 then mixes xAI server-side `{type:web_search}` / `{type:x_search}` into the **same** Responses turn as the reply (shown as thinking). dsh's native function `web_search` stays in the host tool list, but is stripped from that xAI payload so the names do not collide (`Duplicate tool names: web_search`).
+This bundle's composition sets `backendSearch: false` (off by default; enable it from Settings or config). When enabled, grok-4.6 mixes xAI server-side `{type:web_search}` / `{type:x_search}` into the **same** Responses turn as the reply (shown as thinking). dsh's native function `web_search` stays in the host tool list, but is stripped from that xAI payload so the names do not collide (`Duplicate tool names: web_search`).
 
-Nested `grok_web_search` / `x_search` (a second `grok-build-0.1` hop) are **not** registered in this default. Set `nestedSearchTools: true` only if you need `allowed_domains` / handle / date filters, or as a fallback after `backendSearch: false`. A SuperGrok 403 on the chat route is fatal for that turn — set `backendSearch: false` in the plugin config.
+Nested `grok_web_search` / `x_search` (a second `grok-build-0.1` hop) are registered automatically while `backendSearch` is off (`nestedSearchTools ?? !backendSearch`). Set `nestedSearchTools: true` only if you need `allowed_domains` / handle / date filters alongside backend search. A SuperGrok 403 on the chat route is fatal for that turn — set `backendSearch: false` in the plugin config. Reject-tool stubs such as `x_keyword_search` are stripped from the forwarded stream when backend search is on; they are not part of the normal UI.
 
 `grok_imagine` is on by default. Current DSH builds cannot display the generated image directly in the conversation. Ask the Agent to save it to a specific directory when you need a normal file; without a specified directory, it is stored in the DSH attachment library.
 

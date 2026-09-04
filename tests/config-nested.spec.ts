@@ -2,6 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { restoreEnv } from './restore-env.ts'
 import { apply, Config, resolveNestedSearchTools, resolveStatefulResponses } from '../src/index.ts'
 import { XAI_SERVER_X_SEARCH_REJECT_NAMES } from '../src/responses.ts'
 
@@ -16,7 +17,7 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
-  process.env.DSH_HOME = originalHome
+  restoreEnv('DSH_HOME', originalHome)
   if (dir !== undefined) await rm(dir, { recursive: true, force: true })
   dir = undefined
 })

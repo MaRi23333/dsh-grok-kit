@@ -17,6 +17,7 @@ import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-attachment'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import type {} from '@deepseek-ai/dsh-llm'
+import type {} from '@deepseek-ai/dsh-system-prompt'
 import { createXaiOAuthAdapter } from './adapter.ts'
 import { registerXaiOAuthAuthRoutes } from './auth-routes.ts'
 import { XAI_OAUTH_ROUTE } from './ids.ts'
@@ -135,11 +136,12 @@ export type { SearchRequest, SearchResult, SearchSource, XaiOAuthTokenSource, Xa
 export {
   mergePluginOptions,
   optionsPath,
+  presentPluginOptions,
   readStoredOptions,
   sanitizeStoredOptions,
   writeStoredOptions,
 } from './options.ts'
-export type { StoredPluginOptions } from './options.ts'
+export type { EffectivePluginOptions, OptionValueSource, PresentedPluginOptions, StoredPluginOptions } from './options.ts'
 export {
   applyStatefulContinuation,
   clientInputDelta,
@@ -191,7 +193,7 @@ export interface Config {
   xSearchTimeoutMs?: number
   /**
    * Mix server-side web_search / x_search into the main chat request.
-   * Schema default is false; this bundle's composition sets true.
+   * Schema default is false; this bundle's composition is also false.
    */
   backendSearch?: boolean
   /**
@@ -284,7 +286,11 @@ export function apply(ctx: Context, config: Config): void {
       createXaiOAuthAdapter(session, () => ctx.get('attachments')),
     )
   }
-  ctx.inject(['webServer'], webCtx => registerXaiOAuthAuthRoutes(webCtx, session))
+  ctx.inject(['webServer'], webCtx => registerXaiOAuthAuthRoutes(
+    webCtx,
+    session,
+    config as unknown as Record<string, unknown>,
+  ))
 
   const searchModel = effectiveConfig.searchModel ?? DEFAULT_XAI_SEARCH_MODEL
   if (nestedSearchTools) {

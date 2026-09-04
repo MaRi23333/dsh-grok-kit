@@ -121,7 +121,11 @@ export function sanitizeRejectToolEvent(event: AssistantMessageEvent): Assistant
   if (name !== undefined && REJECT_TOOL_NAMES.has(name)) return undefined
   if (event.type === 'done') {
     const message = stripRejectToolCalls(event.message)
-    return message === event.message ? event : { ...event, message }
+    const reason = message.stopReason === 'stop' || message.stopReason === 'length' || message.stopReason === 'toolUse'
+      ? message.stopReason
+      : event.reason
+    if (message === event.message && reason === event.reason) return event
+    return { ...event, message, reason }
   }
   if (event.type === 'error') {
     const error = stripRejectToolCalls(event.error)
@@ -317,7 +321,7 @@ function forwardStream(
           first = false
           source = extras.retryPrevious()
           for await (const retried of source) {
-            const sanitized = sanitizeRejectToolEvent(retried)
+            const sanitized = backendSearch ? sanitizeRejectToolEvent(retried) : retried
             if (sanitized === undefined) continue
             const finished = finishedResponseOf(sanitized)
             if (finished !== undefined) extras.remember?.(finished.responseId, finished.stopReason)
@@ -327,7 +331,7 @@ function forwardStream(
           return
         }
         first = false
-        const sanitized = sanitizeRejectToolEvent(event)
+        const sanitized = backendSearch ? sanitizeRejectToolEvent(event) : event
         if (sanitized === undefined) continue
         const finished = finishedResponseOf(sanitized)
         if (finished !== undefined) extras?.remember?.(finished.responseId, finished.stopReason)

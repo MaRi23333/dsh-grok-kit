@@ -221,24 +221,15 @@ export class XaiOAuthCredentialStore implements CredentialStore {
   }
 
   /**
-   * Break a writer lock that is provably orphaned: its recorded pid is dead
-   * (kill(pid, 0) → ESRCH), or it is empty past the grace window (owner died
-   * between create and pid write). dsh-atomic-write leaves orphan recovery
-   * to operators by design (lock age cannot distinguish a crashed owner from
-   * a paused writer), but these two shapes are proof enough for this
-   * plugin's own lock sibling: a force-killed host otherwise wedges every
-   * later credential write until a human deletes the file by hand. Runs
-   * before every withFileLock acquisition below; a lock that cannot be
-   * *proven* orphaned is left untouched.
+   * Break a writer lock whose recorded pid is provably gone. Empty locks and
+   * foreign/unparsable documents are left for the operator — age is not proof
+   * that a paused live writer died. Rescue renames the candidate off the
+   * original path before unlinking so a successor lock is never deleted.
    */
   private async clearStaleLock(): Promise<void> {
     try {
       const pid = await breakStaleWriterLock(`${this.lockFilename}.lock`)
-      if (pid === 0) {
-        console.warn(
-          `dsh-grok-kit: removed stale empty writer lock ${this.lockFilename}.lock (no pid recorded; owner died between create and write); continuing normally.`,
-        )
-      } else if (pid !== undefined) {
+      if (pid !== undefined) {
         console.warn(
           `dsh-grok-kit: removed writer lock ${this.lockFilename}.lock left by dead process ${pid}; continuing normally.`,
         )

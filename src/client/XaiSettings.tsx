@@ -181,9 +181,22 @@ export function XaiSettings({ t }: XaiOAuthSettingsProps) {
   const [proxyFeedback, setProxyFeedback] = useState<'idle' | 'saved' | 'error'>('idle')
   const [popupBlocked, setPopupBlocked] = useState(false)
   const [options, setOptions] = useState<Partial<Record<OptionKey, OptionValue>>>({})
+  const [storedOptions, setStoredOptions] = useState<Partial<Record<OptionKey, OptionValue>>>({})
   const [optionsDirty, setOptionsDirty] = useState<ReadonlySet<OptionKey>>(new Set())
   const [optionsBusy, setOptionsBusy] = useState(false)
   const [optionsFeedback, setOptionsFeedback] = useState<'idle' | 'saved' | 'error'>('idle')
+
+  type OptionsPayload = {
+    options?: Partial<Record<OptionKey, OptionValue>>
+    effective?: Partial<Record<OptionKey, OptionValue>>
+    stored?: Partial<Record<OptionKey, OptionValue>>
+  }
+
+  const applyOptionsPayload = (value: OptionsPayload): void => {
+    setOptions(value.effective ?? value.options ?? {})
+    setStoredOptions(value.stored ?? {})
+    setOptionsDirty(new Set())
+  }
 
   const markOption = (key: OptionKey, value: OptionValue): void => {
     setOptions(previous => ({ ...previous, [key]: value }))
@@ -193,9 +206,7 @@ export function XaiSettings({ t }: XaiOAuthSettingsProps) {
 
   const loadOptions = useCallback(async () => {
     try {
-      const value = await jsonRequest<{ options: Partial<Record<OptionKey, OptionValue>> }>(OPTIONS_PATH)
-      setOptions(value.options ?? {})
-      setOptionsDirty(new Set())
+      applyOptionsPayload(await jsonRequest<OptionsPayload>(OPTIONS_PATH))
     } catch {
       setOptionsFeedback('error')
     }
@@ -206,9 +217,7 @@ export function XaiSettings({ t }: XaiOAuthSettingsProps) {
     try {
       const patch: Record<string, unknown> = {}
       for (const key of optionsDirty) patch[key] = options[key] ?? null
-      const value = await jsonRequest<{ options: Partial<Record<OptionKey, OptionValue>> }>(OPTIONS_PATH, 'POST', patch)
-      setOptions(value.options ?? {})
-      setOptionsDirty(new Set())
+      applyOptionsPayload(await jsonRequest<OptionsPayload>(OPTIONS_PATH, 'POST', patch))
       setOptionsFeedback('saved')
     } catch {
       setOptionsFeedback('error')
@@ -222,9 +231,7 @@ export function XaiSettings({ t }: XaiOAuthSettingsProps) {
     try {
       const patch: Record<string, unknown> = {}
       for (const key of ALL_OPTION_KEYS) patch[key] = null
-      const value = await jsonRequest<{ options: Partial<Record<OptionKey, OptionValue>> }>(OPTIONS_PATH, 'POST', patch)
-      setOptions(value.options ?? {})
-      setOptionsDirty(new Set())
+      applyOptionsPayload(await jsonRequest<OptionsPayload>(OPTIONS_PATH, 'POST', patch))
       setOptionsFeedback('saved')
     } catch {
       setOptionsFeedback('error')
@@ -553,7 +560,11 @@ export function XaiSettings({ t }: XaiOAuthSettingsProps) {
         <label style={optionRowStyle}>
           <span>{t('nestedSearchTools')}</span>
           <select
-            value={options.nestedSearchTools === undefined ? 'auto' : String(options.nestedSearchTools)}
+            value={
+              optionsDirty.has('nestedSearchTools')
+                ? options.nestedSearchTools === undefined ? 'auto' : String(options.nestedSearchTools)
+                : storedOptions.nestedSearchTools === undefined ? 'auto' : String(storedOptions.nestedSearchTools)
+            }
             disabled={optionsBusy}
             onChange={(event) => markOption(
               'nestedSearchTools',

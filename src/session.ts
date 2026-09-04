@@ -129,6 +129,9 @@ export class XaiOAuthSession {
   private catalogRetryTimer: ReturnType<typeof setTimeout> | undefined
   private catalogRetryAttempt = 0
   private disposed = false
+  /** Bumped on every refresh start, logout, and dispose so in-flight work cannot commit. */
+  private catalogGeneration = 0
+  private catalogInFlight: AbortController | undefined
 
   constructor(
     store: XaiOAuthCredentialStore = new XaiOAuthCredentialStore(),
@@ -184,10 +187,18 @@ export class XaiOAuthSession {
     this.catalogRetryAttempt = 0
   }
 
-  /** Stop background catalog retries; pending refreshes may still finish. */
+  /** Stop background retries and invalidate every in-flight catalog refresh. */
   dispose(): void {
     this.disposed = true
+    this.invalidateInFlightCatalog()
     this.clearCatalogRetry()
+  }
+
+  /** Drop timers and in-flight fetches so their results cannot commit. */
+  private invalidateInFlightCatalog(): void {
+    this.catalogGeneration += 1
+    this.catalogInFlight?.abort()
+    this.catalogInFlight = undefined
   }
 
   /** Secret-free listing diagnostic from the last refresh. */
@@ -257,43 +268,78 @@ export class XaiOAuthSession {
     // Never throw: boot calls this in the background, and getAuth may take the
     // credential lock (or time out on a leftover .lock). A listing failure
     // must not take the host process down.
-    let access: string | undefined
+    if (this.disposed) return
+    const generation = ++this.catalogGeneration
+    this.catalogInFlight?.abort()
+    const local = new AbortController()
+    this.catalogInFlight = local
+    const onOuterAbort = () => local.abort()
+    if (signal !== undefined) {
+      if (signal.aborted) local.abort()
+      else signal.addEventListener('abort', onOuterAbort, { once: true })
+    }
+    const combined = signal === undefined ? local.signal : AbortSignal.any([local.signal, signal])
+    const isStale = (): boolean => this.disposed || generation !== this.catalogGeneration || local.signal.aborted
+
     try {
-      const stored = await this.store.read(XAI_PI_PROVIDER)
-      if (stored?.type === 'oauth' && stored.access.length > 0) access = stored.access
-      const expired = stored?.type === 'oauth' && Date.now() >= stored.expires
-      if (expired || access === undefined) {
-        const auth = await this.models.getAuth(XAI_PI_PROVIDER)
-        const refreshed = auth?.auth.apiKey
-        if (refreshed !== undefined && refreshed.length > 0) access = refreshed
+      let access: string | undefined
+      try {
+        const stored = await this.store.read(XAI_PI_PROVIDER)
+        if (stored?.type === 'oauth' && stored.access.length > 0) access = stored.access
+        const expired = stored?.type === 'oauth' && Date.now() >= stored.expires
+        if (expired || access === undefined) {
+          const auth = await this.models.getAuth(XAI_PI_PROVIDER)
+          const refreshed = auth?.auth.apiKey
+          if (refreshed !== undefined && refreshed.length > 0) access = refreshed
+        }
+      } catch (error) {
+        if (isStale()) return
+        this.listingError = safeMessage(error instanceof Error ? error.message : String(error))
+        if (this.liveIds === undefined) this.source = 'fallback'
+        this.scheduleCatalogRetry(signal)
+        if (access === undefined) return
       }
-    } catch (error) {
-      this.listingError = safeMessage(error instanceof Error ? error.message : String(error))
-      if (this.liveIds === undefined) this.source = 'fallback'
-      this.scheduleCatalogRetry(signal)
-      if (access === undefined) return
-    }
-    if (access === undefined || access.length === 0) {
-      // Nothing to refresh (logged out, or an empty Grok document): stop any
-      // retry episode started earlier instead of spinning on a store that
-      // cannot succeed.
-      this.clearCatalogRetry()
-      this.listingError = undefined
-      return
-    }
-    try {
-      const ids = await fetchLiveModelIds(access, signal)
-      this.liveIds = ids
-      this.source = 'live'
-      this.listingError = undefined
-      await this.writeCache()
-      this.invalidateProvider()
-      this.clearCatalogRetry()
-      this.onCatalogChange?.()
-    } catch (error) {
-      this.listingError = safeMessage(error instanceof Error ? error.message : String(error))
-      if (this.liveIds === undefined) this.source = 'fallback'
-      this.scheduleCatalogRetry(signal)
+      if (isStale()) return
+      if (access === undefined || access.length === 0) {
+        // Nothing to refresh (logged out, or an empty Grok document): stop any
+        // retry episode started earlier instead of spinning on a store that
+        // cannot succeed.
+        this.clearCatalogRetry()
+        this.listingError = undefined
+        return
+      }
+      try {
+        const ids = await fetchLiveModelIds(access, combined)
+        if (isStale()) return
+        this.liveIds = ids
+        this.source = 'live'
+        this.listingError = undefined
+        await this.writeCache()
+        if (isStale()) {
+          if (this.liveIds === undefined || this.liveIds === ids) {
+            this.liveIds = undefined
+            this.source = 'fallback'
+            this.invalidateProvider()
+            try {
+              await rm(this.cacheFile, { force: true })
+            } catch {
+              // Best-effort: logout/dispose also remove the cache.
+            }
+          }
+          return
+        }
+        this.invalidateProvider()
+        this.clearCatalogRetry()
+        this.onCatalogChange?.()
+      } catch (error) {
+        if (isStale()) return
+        this.listingError = safeMessage(error instanceof Error ? error.message : String(error))
+        if (this.liveIds === undefined) this.source = 'fallback'
+        this.scheduleCatalogRetry(signal)
+      }
+    } finally {
+      signal?.removeEventListener('abort', onOuterAbort)
+      if (this.catalogInFlight === local) this.catalogInFlight = undefined
     }
   }
 
@@ -306,6 +352,7 @@ export class XaiOAuthSession {
   }
 
   async logout(): Promise<void> {
+    this.invalidateInFlightCatalog()
     this.clearCatalogRetry()
     await this.store.delete(XAI_PI_PROVIDER)
     this.liveIds = undefined

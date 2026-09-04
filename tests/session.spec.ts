@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { XaiOAuthSession } from '../src/session.ts'
 import type { XaiOAuthCredentialStore } from '../src/store.ts'
+import { restoreEnv } from './restore-env.ts'
 
 const FUTURE = Date.now() + 3_600_000
 
@@ -11,10 +12,15 @@ function oauthCredential() {
   return { type: 'oauth' as const, access: 'access-token', refresh: 'refresh-token', expires: FUTURE }
 }
 
-function mockStore(impl: { read: () => Promise<unknown>; exists?: () => boolean }): XaiOAuthCredentialStore {
+function mockStore(impl: {
+  read: () => Promise<unknown>
+  exists?: () => boolean
+  delete?: () => Promise<void>
+}): XaiOAuthCredentialStore {
   return {
     read: impl.read,
     exists: impl.exists ?? (() => true),
+    delete: impl.delete ?? (async () => undefined),
     filename: 'unused',
   } as unknown as XaiOAuthCredentialStore
 }
@@ -40,7 +46,7 @@ async function isolateDshHome(): Promise<void> {
 afterEach(async () => {
   vi.useRealTimers()
   vi.unstubAllGlobals()
-  if (realDshHome !== undefined) process.env.DSH_HOME = realDshHome
+  if (tempHome !== undefined) restoreEnv('DSH_HOME', realDshHome)
   const home = tempHome
   realDshHome = undefined
   tempHome = undefined
@@ -135,5 +141,99 @@ describe('XaiOAuthSession.refreshLiveCatalog', () => {
     session.dispose()
     await vi.runAllTimersAsync()
     expect(reads).toBe(1)
+  })
+
+  it('does not commit an in-flight listing after logout', async () => {
+    await isolateDshHome()
+    let release!: () => void
+    const gate = new Promise<void>(resolve => { release = resolve })
+    vi.stubGlobal('fetch', async (_url: string, init?: { signal?: AbortSignal }) => {
+      await gate
+      if (init?.signal?.aborted) {
+        const error = new Error('aborted')
+        error.name = 'AbortError'
+        throw error
+      }
+      return new Response(
+        JSON.stringify({ data: [{ id: 'grok-4.6' }] }),
+        { status: 200 },
+      )
+    })
+    const session = new XaiOAuthSession(
+      mockStore({ read: async () => oauthCredential() }),
+      undefined,
+      { catalogRetryDelaysMs: [] },
+    )
+    const pending = session.refreshLiveCatalog()
+    await session.logout()
+    release()
+    await pending
+    expect(session.catalogSource).toBe('fallback')
+    expect(session.liveModelIds()).toBeUndefined()
+  })
+
+  it('does not commit an in-flight listing after dispose', async () => {
+    await isolateDshHome()
+    let release!: () => void
+    const gate = new Promise<void>(resolve => { release = resolve })
+    vi.stubGlobal('fetch', async (_url: string, init?: { signal?: AbortSignal }) => {
+      await gate
+      if (init?.signal?.aborted) {
+        const error = new Error('aborted')
+        error.name = 'AbortError'
+        throw error
+      }
+      return new Response(
+        JSON.stringify({ data: [{ id: 'grok-4.6' }] }),
+        { status: 200 },
+      )
+    })
+    const session = new XaiOAuthSession(
+      mockStore({ read: async () => oauthCredential() }),
+      undefined,
+      { catalogRetryDelaysMs: [] },
+    )
+    const pending = session.refreshLiveCatalog()
+    session.dispose()
+    release()
+    await pending
+    expect(session.catalogSource).toBe('fallback')
+    expect(session.liveModelIds()).toBeUndefined()
+  })
+
+  it('only the latest concurrent refresh may commit when completions finish out of order', async () => {
+    await isolateDshHome()
+    const gates: Array<() => void> = []
+    let started = 0
+    vi.stubGlobal('fetch', async (_url: string, init?: { signal?: AbortSignal }) => {
+      const index = started
+      started += 1
+      await new Promise<void>(resolve => { gates[index] = resolve })
+      if (init?.signal?.aborted) {
+        const error = new Error('aborted')
+        error.name = 'AbortError'
+        throw error
+      }
+      const id = index === 0 ? 'grok-old' : 'grok-new'
+      return new Response(JSON.stringify({ data: [{ id }] }), { status: 200 })
+    })
+    const session = new XaiOAuthSession(
+      mockStore({ read: async () => oauthCredential() }),
+      undefined,
+      { catalogRetryDelaysMs: [] },
+    )
+    const first = session.refreshLiveCatalog()
+    await vi.waitFor(() => expect(gates[0]).toBeTypeOf('function'))
+    const second = session.refreshLiveCatalog()
+    await vi.waitFor(() => expect(gates[1]).toBeTypeOf('function'))
+    gates[1]!()
+    await second
+    expect(session.liveModelIds()).toEqual(['grok-new'])
+    expect(session.catalogSource).toBe('live')
+    gates[0]!()
+    await first
+    expect(session.liveModelIds()).toEqual(['grok-new'])
+    expect(session.catalogSource).toBe('live')
+    session.dispose()
   })
 })

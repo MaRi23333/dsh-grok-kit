@@ -281,6 +281,7 @@ describe('stripRejectToolCalls', () => {
     const doneResult = events.find(event => event.type === 'done')
     if (doneResult?.type === 'done') {
       expect(doneResult.message.stopReason).toBe('stop')
+      expect(doneResult.reason).toBe('stop')
       expect(doneResult.message.content.some(block => block.type === 'toolCall')).toBe(false)
     }
   })
@@ -325,7 +326,64 @@ describe('wrap drops reject-tool events so DSH does not start a reprint step', (
     expect(done?.type).toBe('done')
     if (done?.type === 'done') {
       expect(done.message.stopReason).toBe('stop')
+      expect(done.reason).toBe('stop')
       expect(done.message.content.some(block => block.type === 'toolCall')).toBe(false)
+    }
+  })
+
+  it('keeps a same-named real tool when backendSearch is off even if stateful continuation is on', async () => {
+    const inner: Provider = {
+      id: 'xai-oauth',
+      name: 'x',
+      auth: { apiKey: { name: 't', resolve: async () => undefined } },
+      getModels: () => [],
+      stream: () => createAssistantMessageEventStream(),
+      streamSimple() {
+        const stream = createAssistantMessageEventStream()
+        queueMicrotask(() => {
+          const done = doneEvent()
+          if (done.type !== 'done') throw new Error('unreachable')
+          const partial = {
+            ...done.message,
+            stopReason: 'toolUse' as const,
+            content: [
+              { type: 'text' as const, text: 'calling search' },
+              { type: 'toolCall' as const, id: 'xs|ctc', name: 'x_keyword_search', arguments: { input: 'q' } },
+            ],
+          }
+          stream.push({ type: 'start', partial })
+          stream.push({ type: 'toolcall_start', contentIndex: 1, partial })
+          stream.push({ type: 'toolcall_delta', contentIndex: 1, delta: '{"input":"q"}', partial })
+          stream.push({ type: 'toolcall_end', contentIndex: 1, toolCall: partial.content[1] as never, partial })
+          stream.push({ type: 'done', reason: 'toolUse', message: partial })
+          stream.end()
+        })
+        return stream
+      },
+    }
+    const wrapped = wrapXaiResponsesProvider(inner, {
+      backendSearch: false,
+      retry401: false,
+      statefulResponses: true,
+      chainStore: createMemoryResponseChainStore(),
+    })
+    const events: AssistantMessageEvent[] = []
+    for await (const event of wrapped.streamSimple(
+      GROK_46_MODEL as Model<'openai-responses'>,
+      { messages: [] },
+      { sessionId: 'sess-real-tool' },
+    )) {
+      events.push(event)
+    }
+    expect(events.some(event => event.type === 'toolcall_start')).toBe(true)
+    expect(events.some(event => event.type === 'toolcall_delta')).toBe(true)
+    expect(events.some(event => event.type === 'toolcall_end')).toBe(true)
+    const done = events.find(event => event.type === 'done')
+    expect(done?.type).toBe('done')
+    if (done?.type === 'done') {
+      expect(done.reason).toBe('toolUse')
+      expect(done.message.stopReason).toBe('toolUse')
+      expect(done.message.content.some(block => block.type === 'toolCall' && block.name === 'x_keyword_search')).toBe(true)
     }
   })
 })

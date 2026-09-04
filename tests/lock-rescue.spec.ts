@@ -1,23 +1,17 @@
 import { spawn } from 'node:child_process'
-import { mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises'
+import { copyFile, mkdtemp, readFile, readdir, rename, rm, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { breakStaleWriterLock, EMPTY_LOCK_GRACE_MS, isPidAlive, parseLockPid } from '../src/lock-rescue.ts'
+import { breakStaleWriterLock, isPidAlive, parseLockPid } from '../src/lock-rescue.ts'
 
-const files: string[] = []
+const dirs: string[] = []
 
 afterEach(async () => {
-  const cleanup = [...files]
-  files.length = 0
-  await Promise.all(cleanup.map(path => rm(path, { force: true })))
+  const cleanup = [...dirs]
+  dirs.length = 0
+  await Promise.all(cleanup.map(path => rm(path, { recursive: true, force: true })))
 })
-
-/** Backdate a file's mtime so age-based logic sees it as old. */
-async function ageFile(path: string, ageMs: number): Promise<void> {
-  const when = new Date(Date.now() - ageMs)
-  await utimes(path, when, when)
-}
 
 /** A pid that is definitely gone: spawn a short-lived child and wait for exit. */
 async function deadPid(): Promise<number> {
@@ -30,17 +24,20 @@ async function deadPid(): Promise<number> {
 }
 
 describe('parseLockPid', () => {
-  it('reads the dsh-atomic-write pid line', () => {
+  it('accepts only the exact dsh-atomic-write document `${pid}\\n`', () => {
     expect(parseLockPid('123\n')).toBe(123)
-    expect(parseLockPid('123')).toBe(123)
   })
 
-  it('rejects content without a bare positive integer first line', () => {
+  it('rejects missing newline, padding, extra lines, and foreign formats', () => {
+    expect(parseLockPid('123')).toBeUndefined()
+    expect(parseLockPid(' 123\n')).toBeUndefined()
+    expect(parseLockPid('123\n456\n')).toBeUndefined()
+    expect(parseLockPid('123\r\n')).toBeUndefined()
     expect(parseLockPid('')).toBeUndefined()
     expect(parseLockPid('not-a-pid\n')).toBeUndefined()
     expect(parseLockPid('-7\n')).toBeUndefined()
     expect(parseLockPid('12 3\n')).toBeUndefined()
-    // 11 digits cannot be a pid on any supported platform.
+    expect(parseLockPid('15016:1788411457')).toBeUndefined()
     expect(parseLockPid('99999999999\n')).toBeUndefined()
   })
 })
@@ -64,9 +61,8 @@ describe('isPidAlive', () => {
 describe('breakStaleWriterLock', () => {
   async function tempLockPath(): Promise<string> {
     const dir = await mkdtemp(join(tmpdir(), 'dsh-xai-lock-'))
-    const lockPath = join(dir, 'auth.json.lock')
-    files.push(lockPath)
-    return lockPath
+    dirs.push(dir)
+    return join(dir, 'auth.json.lock')
   }
 
   it('is a no-op when the lock file is missing', async () => {
@@ -89,6 +85,15 @@ describe('breakStaleWriterLock', () => {
     expect(await readFile(lockPath, 'utf8')).toBe(`${process.pid}\n`)
   })
 
+  it('does not evict a live writer that paused past any age threshold with an empty lock', async () => {
+    const lockPath = await tempLockPath()
+    await writeFile(lockPath, '', { mode: 0o600 })
+    const when = new Date(Date.now() - 60_000)
+    await utimes(lockPath, when, when)
+    await expect(breakStaleWriterLock(lockPath)).resolves.toBeUndefined()
+    expect(await readFile(lockPath, 'utf8')).toBe('')
+  })
+
   it('leaves a lock with unparsable content for the operator', async () => {
     const lockPath = await tempLockPath()
     await writeFile(lockPath, '{"grok":"cli"}\n', { mode: 0o600 })
@@ -98,27 +103,19 @@ describe('breakStaleWriterLock', () => {
 
   it('leaves a foreign pid:timestamp lock (Grok CLI format) for the operator', async () => {
     const lockPath = await tempLockPath()
-    // Real-world format observed at ~/.grok/auth.json.lock.
     const content = '15016:1788411457'
     await writeFile(lockPath, content, { mode: 0o600 })
-    await ageFile(lockPath, EMPTY_LOCK_GRACE_MS * 10)
     await expect(breakStaleWriterLock(lockPath)).resolves.toBeUndefined()
     expect(await readFile(lockPath, 'utf8')).toBe(content)
   })
 
-  it('removes an empty lock past the grace window (owner died before writing the pid)', async () => {
+  it('leaves multiline pid-like content for the operator', async () => {
     const lockPath = await tempLockPath()
-    await writeFile(lockPath, '', { mode: 0o600 })
-    await ageFile(lockPath, EMPTY_LOCK_GRACE_MS + 1_000)
-    await expect(breakStaleWriterLock(lockPath)).resolves.toBe(0)
-    await expect(readFile(lockPath, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
-  })
-
-  it('leaves a fresh empty lock alone (may be a live writer mid-write)', async () => {
-    const lockPath = await tempLockPath()
-    await writeFile(lockPath, '', { mode: 0o600 })
+    const pid = await deadPid()
+    const content = `${pid}\n${pid}\n`
+    await writeFile(lockPath, content, { mode: 0o600 })
     await expect(breakStaleWriterLock(lockPath)).resolves.toBeUndefined()
-    expect(await readFile(lockPath, 'utf8')).toBe('')
+    expect(await readFile(lockPath, 'utf8')).toBe(content)
   })
 
   it('stays harmless when two contenders break the same stale lock', async () => {
@@ -131,5 +128,23 @@ describe('breakStaleWriterLock', () => {
     ])
     expect(results.some(result => result === pid)).toBe(true)
     await expect(readFile(lockPath, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('does not delete a successor lock created at the original path after rename', async () => {
+    const lockPath = await tempLockPath()
+    const pid = await deadPid()
+    await writeFile(lockPath, `${pid}\n`, { mode: 0o600 })
+    await expect(breakStaleWriterLock(lockPath, {
+      readFile: path => readFile(path, 'utf8'),
+      copyFile,
+      rm: path => rm(path, { force: true }),
+      rename: async (from, to) => {
+        await rename(from, to)
+        await writeFile(lockPath, `${process.pid}\n`, { mode: 0o600 })
+      },
+    })).resolves.toBe(pid)
+    expect(await readFile(lockPath, 'utf8')).toBe(`${process.pid}\n`)
+    const leftovers = (await readdir(join(lockPath, '..'))).filter(name => name.includes('.stale-'))
+    expect(leftovers).toEqual([])
   })
 })

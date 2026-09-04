@@ -18,6 +18,7 @@ import { probeGrokAuth } from './grok-import.ts'
 import { readStoredProxyUrl, setXaiProxyUrl, validProxyUrl, writeStoredProxyUrl } from './proxy.ts'
 import { safeMessage } from './redact.ts'
 import {
+  presentPluginOptions,
   readStoredOptions,
   sanitizeStoredOptions,
   type StoredPluginOptions,
@@ -358,10 +359,21 @@ function json(res: ServerResponse, status: number, value: unknown): void {
   res.end(JSON.stringify(value))
 }
 
+function optionsResponse(cordisConfig: Record<string, unknown>, stored: StoredPluginOptions) {
+  const presented = presentPluginOptions(cordisConfig, stored)
+  return {
+    options: presented.effective,
+    stored: presented.stored,
+    effective: presented.effective,
+    sources: presented.sources,
+  }
+}
+
 /** Register the plugin-owned OAuth routes when the Web server is composed. */
 export function registerXaiOAuthAuthRoutes(
   ctx: Context,
   session: XaiOAuthSession,
+  cordisConfig: Record<string, unknown> = {},
 ): void {
   const auth = new XaiOAuthWebAuth(session)
   ctx.effect(() => {
@@ -458,7 +470,7 @@ export function registerXaiOAuthAuthRoutes(
         handler: async (req, res) => {
           if (!trustedRequest(req)) return json(res, 403, { error: 'forbidden' })
           if (req.method === 'GET') {
-            return json(res, 200, { options: readStoredOptions() })
+            return json(res, 200, optionsResponse(cordisConfig, readStoredOptions()))
           }
           if (req.method !== 'POST') return json(res, 405, { error: 'method not allowed' })
           try {
@@ -468,9 +480,9 @@ export function registerXaiOAuthAuthRoutes(
               options: mergeStoredOptionsPatch(readStoredOptions(), body),
             })
             await writeStoredOptions(merged)
-            // Respond with the sanitized document so the UI state always
-            // matches the disk (invalid/out-of-range values are dropped).
-            json(res, 200, { options: merged })
+            // Respond with effective values so the UI matches runtime, plus
+            // the sanitized stored document (invalid/out-of-range dropped).
+            json(res, 200, optionsResponse(cordisConfig, merged))
           } catch (error: unknown) {
             json(res, errorStatus(error), { error: safeMessage(error) })
           }

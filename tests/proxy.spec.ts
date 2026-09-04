@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
+import { restoreEnv } from './restore-env.ts'
 import {
   applyXaiProxy,
   installXaiFetchHook,
@@ -18,8 +19,8 @@ const originalEnv = process.env.DSH_XAI_PROXY
 let dir: string | undefined
 
 afterEach(async () => {
-  process.env.DSH_HOME = originalHome
-  process.env.DSH_XAI_PROXY = originalEnv
+  restoreEnv('DSH_HOME', originalHome)
+  restoreEnv('DSH_XAI_PROXY', originalEnv)
   setXaiProxyUrl('')
   if (dir !== undefined) await rm(dir, { recursive: true, force: true })
   dir = undefined

@@ -14,7 +14,8 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { GenericCallView, ToolResult, WebSearchResultView } from '@deepseek-ai/dsh-tools'
-import type { JsonValue } from '@deepseek-ai/dsh-session'
+import type { JsonValue } from '@deepseek-ai/dsh-util-values'
+import type {} from '@deepseek-ai/dsh-system-prompt'
 import type { XaiOAuthSearchProvider, SearchRequest, SearchResult, SearchSource } from './search.ts'
 import { XAI_SERVER_X_SEARCH_REJECT_NAMES } from './responses.ts'
 

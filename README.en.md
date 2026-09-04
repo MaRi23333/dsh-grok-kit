@@ -10,7 +10,7 @@
   <a href="https://github.com/MaRi23333/dsh-grok-kit/actions/workflows/ci.yml"><img src="https://github.com/MaRi23333/dsh-grok-kit/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://www.npmjs.com/package/dsh-grok-kit"><img src="https://img.shields.io/npm/v/dsh-grok-kit.svg" alt="npm version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-4d6bfe.svg" alt="Apache-2.0"></a>
-  <img src="https://img.shields.io/badge/DeepSeek%20Harness-0.1.1--rc.2%2B-4d6bfe" alt="DeepSeek Harness 0.1.1-rc.2+">
+  <img src="https://img.shields.io/badge/DeepSeek%20Harness-0.1.2--rc.1-4d6bfe" alt="DeepSeek Harness 0.1.2-rc.1">
   <img src="https://img.shields.io/badge/status-unofficial%20community%20plugin-7c84a8" alt="Unofficial community plugin">
 </p>
 
@@ -44,11 +44,11 @@ The same model id does not guarantee the same experience across integrations. [x
 
 To let both search systems coexist, DSH's native `web_search` remains in the host tool list but is removed from an xAI payload with fused search enabled, preventing a server-tool name collision. Other model routes can continue using the host search tool normally.
 
-> If a name such as `x_keyword_search` briefly appears in the UI, xAI has already completed that X search. The matching plugin item only lets DSH finish the current turn; it does not search again.
+> When main-turn search is on, the plugin strips xAI reject stubs such as `x_keyword_search` so DSH does not start another step and reprint the writeup. If those names still appear, treat them as a diagnostic path, not normal UI.
 
 For domain, account, or date filters, use the standalone `grok_web_search` / `x_search` tools — the default path while `backendSearch` is off; enabling `backendSearch` turns this standalone path into the optional mode.
 
-`statefulResponses` is off by default. When enabled, the plugin uses `store: true` + `previous_response_id` and appends only new user items. A previous `toolUse` turn (`x_keyword_search` stubs, bash, …) is never continued — otherwise xAI emits a second message that reprints the search writeup. A live OAuth probe could list sources on follow-up, but `cached_tokens` does not become that turn's 100k–300k search KV.
+`statefulResponses` is off by default. When enabled, the plugin uses `store: true` + `previous_response_id` and appends only new user items. A previous `toolUse` turn (client tools such as bash) is never continued — otherwise xAI emits a second message that reprints the search writeup. A live OAuth probe could list sources on follow-up, but `cached_tokens` does not become that turn's 100k–300k search KV.
 
 ## Interface and behavior
 
@@ -75,7 +75,7 @@ For domain, account, or date filters, use the standalone `grok_web_search` / `x_
 <p align="center">
   <img src="assets/readme/x-search.png" width="760" alt="xAI returns an X-search custom_tool_call before completing the answer">
 </p>
-<p align="center"><em>X search may surface a <code>custom_tool_call</code> such as <code>x_keyword_search</code>. xAI has already run the search; the plugin only completes that turn in DSH. Screenshot content is illustrative.</em></p>
+<p align="center"><em>Current builds strip <code>x_keyword_search</code> reject stubs when main-turn search is on, so the normal path no longer forwards them to DSH. The screenshot is illustrative and does not mean those names still appear in the UI.</em></p>
 
 ## Install
 
@@ -142,10 +142,11 @@ The “Search & feature options” card on Settings → xAI Grok can also overri
 - Proxy settings accept only `http://` or `https://` URLs without embedded credentials; legacy values containing userinfo are scrubbed and do not reach status responses or logs
 - The xAI-only fetch hook is restored when the plugin is disposed and does not permanently change system or process environment variables
 - On Windows, Node mode bits are not NTFS ACLs. Restrict the directory ACL yourself if the user profile or `$DSH_HOME` is stored in a shared location
-- The plugin's own writer lock (`$DSH_HOME/.xai-oauth-auth.json.lock`) is removed automatically when its recorded owner process is provably gone (the pid inside no longer exists), or when it has stayed empty for over 10 seconds (the owner was killed between creating the lock and writing the pid); when orphanhood cannot be proven (recycled pid, another user's process, foreign lock format) it is left untouched for manual handling
+- The plugin's own writer lock (`$DSH_HOME/.xai-oauth-auth.json.lock`) is removed automatically only when its contents are exactly `${pid}\n` and that pid is gone (atomic rename, then unlink the isolated file, so a successor lock is never deleted). Empty locks, extra lines, and foreign formats (including the Grok CLI `pid:timestamp` document) are left for manual handling — file age is not proof that a live writer died
 
 ## Compatibility and limitations
 
+- Tested host matrix: DeepSeek Harness `0.1.2-rc.1` + `@earendil-works/pi-ai@0.84.4` (Node 22/24). peerDependencies follow that matrix; 0.1.1 is not claimed.
 - Some subscription tiers may allow browser sign-in but return HTTP 403 for chat or server-side search; this is an entitlement/service-policy result, not necessarily an expired token
 - HTTP 401 is retried once after serialized refresh; 403 is not treated as token expiry
 - Running this bundle alongside another bundle that registers the same xAI OAuth route is unsupported; follow the migration steps in [INSTALL.md](INSTALL.md) and remove the conflicting bundle first
@@ -154,7 +155,7 @@ The “Search & feature options” card on Settings → xAI Grok can also overri
 
 ## Troubleshooting
 
-**Startup or chat reports `timed out waiting for the writer lock`**: a force-killed or crashed writer process left a `*.lock` file behind (lock content is the recorded owner pid). The plugin checks its own lock before every credential write: a provably dead owner, and an empty lock older than 10 seconds (owner killed before writing the pid), are cleared automatically and the operation proceeds; when orphanhood cannot be proven (recycled pid, another user's process) the lock is left alone. Clean up by hand:
+**Startup or chat reports `timed out waiting for the writer lock`**: a force-killed or crashed writer process left a `*.lock` file behind. The plugin checks its own lock before every credential write: only an exact `${pid}\n` document whose pid is gone is cleared automatically. Empty locks (which may still belong to a live writer that has not written the pid yet) and unparsable content are left alone. When orphanhood cannot be proven (recycled pid, another user's process) the lock is also left alone. Clean up by hand:
 
 1. Close all DeepSeek Harness and Grok CLI processes;
 2. Delete `.xai-oauth-auth.json.lock` under `$DSH_HOME` (default `~/.dsh`);
