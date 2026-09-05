@@ -137,13 +137,13 @@ try {
 
   const pluginDir = join(dshHome, 'profiles', PROFILE, 'node_modules', 'dsh-grok-kit')
   const manifest = JSON.parse(readFileSync(join(pluginDir, 'package.json'), 'utf8'))
-  if (manifest.version !== '0.1.8') {
-    throw new Error(`installed plugin version is ${manifest.version}, expected 0.1.8`)
+  if (manifest.version !== '0.1.9') {
+    throw new Error(`installed plugin version is ${manifest.version}, expected 0.1.9`)
   }
   if (!existsSync(join(pluginDir, 'lib', 'index.js'))) {
     throw new Error('installed plugin is missing lib/index.js')
   }
-  console.log(`pack-install-smoke: OK — DSH ${EXPECTED_DSH} / pi-ai ${EXPECTED_PI_AI} / booted web profile loaded dsh-grok-kit@0.1.8`)
+  console.log(`pack-install-smoke: OK — DSH ${EXPECTED_DSH} / pi-ai ${EXPECTED_PI_AI} / booted web profile loaded dsh-grok-kit@0.1.9`)
 } finally {
   if (tarball !== undefined) rmSync(tarball, { force: true })
   rmSync(work, { recursive: true, force: true })

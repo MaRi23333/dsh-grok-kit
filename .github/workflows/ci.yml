@@ -60,6 +60,11 @@ jobs:
           test ! -e "$package_dir/package/tests"
           rm -f "$package_file"
 
+      - name: Setup pnpm for DSH plugin smoke
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 11.21.0
+
       - name: Isolated pack-install smoke
         run: |
           npm install -g @deepseek-ai/dsh@0.1.2-rc.1
