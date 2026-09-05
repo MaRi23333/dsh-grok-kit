@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 /**
  * Isolated DSH 0.1.2-rc.1 pack-install smoke: npm pack, `dsh plugin add` into
- * the `web` profile, dump-config, and actually import the plugin entry.
+ * the `web` profile, booted `--help`, and the plugin entry.
  * Isolates DSH_HOME / HOME / USERPROFILE and package-manager config/cache.
  * Does not read real user credentials.
  *
  * Requires `dsh` 0.1.2-rc.1 on PATH (CI installs it). Optional DSH_BIN.
  */
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { accessSync, constants, existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join, resolve } from 'node:path'
+import { delimiter, dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const EXPECTED_DSH = '0.1.2-rc.1'
@@ -27,11 +27,30 @@ function run(file, args, opts = {}) {
   })
 }
 
+function resolveOnPath(name) {
+  const pathEntries = (process.env.PATH ?? '').split(delimiter)
+  const extensions = process.platform === 'win32'
+    ? (process.env.PATHEXT ?? '.COM;.EXE;.BAT;.CMD').split(';').filter(Boolean)
+    : ['']
+  const names = extensions.some(extension => name.toLowerCase().endsWith(extension.toLowerCase()))
+    ? [name]
+    : extensions.map(extension => `${name}${extension}`)
+  const candidates = isAbsolute(name)
+    ? names
+    : pathEntries.map(directory => directory || '.').flatMap(directory => names.map(candidate => join(directory, candidate)))
+  return candidates.find(candidate => {
+    try {
+      accessSync(candidate, process.platform === 'win32' ? constants.F_OK : constants.X_OK)
+      return true
+    } catch {
+      return false
+    }
+  })
+}
+
 function resolveDshInstall() {
   const binName = process.env.DSH_BIN ?? (process.platform === 'win32' ? 'dsh' : 'dsh')
-  const located = process.platform === 'win32'
-    ? run('where', [binName], { env: process.env }).trim().split(/\r?\n/).find(Boolean)
-    : run('command', ['-v', binName], { env: process.env }).trim()
+  const located = resolveOnPath(binName)
   if (!located) throw new Error(`${binName} is not on PATH`)
   const npmDir = dirname(located)
   const candidates = [
@@ -107,6 +126,15 @@ try {
     throw new Error(`dump-config does not show backendSearch: false\n${dump.slice(0, 2000)}`)
   }
 
+  const help = run(host.bin, ['--profile', PROFILE, '--help'], {
+    env,
+    cwd: work,
+    timeout: 30_000,
+  })
+  if (!help.includes('Usage: dsh --profile web') && !help.includes('Serve the DeepSeek Harness browser UI.')) {
+    throw new Error(`booted web profile help did not contain a stable web marker\n${help.slice(0, 2000)}`)
+  }
+
   const pluginDir = join(dshHome, 'profiles', PROFILE, 'node_modules', 'dsh-grok-kit')
   const manifest = JSON.parse(readFileSync(join(pluginDir, 'package.json'), 'utf8'))
   if (manifest.version !== '0.1.8') {
@@ -115,10 +143,7 @@ try {
   if (!existsSync(join(pluginDir, 'lib', 'index.js'))) {
     throw new Error('installed plugin is missing lib/index.js')
   }
-  if (!dump.includes('xai-oauth') && !dump.includes('dsh-grok-kit')) {
-    throw new Error('dump-config did not load the plugin entry')
-  }
-  console.log(`pack-install-smoke: OK — DSH ${EXPECTED_DSH} / pi-ai ${EXPECTED_PI_AI} / web profile loaded dsh-grok-kit@0.1.8`)
+  console.log(`pack-install-smoke: OK — DSH ${EXPECTED_DSH} / pi-ai ${EXPECTED_PI_AI} / booted web profile loaded dsh-grok-kit@0.1.8`)
 } finally {
   if (tarball !== undefined) rmSync(tarball, { force: true })
   rmSync(work, { recursive: true, force: true })

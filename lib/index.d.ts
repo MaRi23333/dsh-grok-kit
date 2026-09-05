@@ -222,8 +222,9 @@ declare class XaiOAuthSession {
    * Schedule the next background catalog retry after a failed refresh. Only
    * while a credential file exists — a logged-out store cannot succeed — and
    * with an unref'd timer so the CLI one-shots (bin.ts) still exit on time.
-   * The retry reuses `refreshLiveCatalog`, so a stale lock that broke the
-   * startup attempt is re-examined (and broken when provably orphaned).
+   * The retry reuses `refreshLiveCatalog`, so a transient lock timeout can be
+   * retried after the lock is released or cleared. The store remains
+   * fail-closed and never breaks a writer lock automatically.
    */
   private scheduleCatalogRetry;
   /** Cancel a pending retry and restart the backoff episode from zero. */

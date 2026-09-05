@@ -39,10 +39,11 @@ const MODELS_CACHE_FILENAME = '.xai-oauth-models.json'
 /**
  * Background retry cadence after a failed live-catalog refresh (credential
  * resolution or listing). The first retry exists for the leftover-writer-lock
- * incident: a stale lock that cannot be proven orphaned (recycled pid, foreign
- * owner) wedges the startup refresh for its 2s wait budget, and the next try
- * succeeds once the holder is gone. Sized to stay quiet: three attempts over
- * ~2.5 minutes, then give up until the next explicit trigger.
+ * incident: a leftover writer lock (including one whose owner cannot be
+ * proven) wedges the startup refresh for its 2s wait budget, and the next try
+ * may succeed once the lock is released or cleared. Sized to stay quiet:
+ * three attempts over ~2.5 minutes, then give up until the next explicit
+ * trigger.
  */
 const CATALOG_RETRY_DELAYS_MS = [5_000, 30_000, 120_000]
 
@@ -161,8 +162,9 @@ export class XaiOAuthSession {
    * Schedule the next background catalog retry after a failed refresh. Only
    * while a credential file exists — a logged-out store cannot succeed — and
    * with an unref'd timer so the CLI one-shots (bin.ts) still exit on time.
-   * The retry reuses `refreshLiveCatalog`, so a stale lock that broke the
-   * startup attempt is re-examined (and broken when provably orphaned).
+   * The retry reuses `refreshLiveCatalog`, so a transient lock timeout can be
+   * retried after the lock is released or cleared. The store remains
+   * fail-closed and never breaks a writer lock automatically.
    */
   private scheduleCatalogRetry(signal?: AbortSignal): void {
     if (this.disposed || signal?.aborted) return
@@ -379,5 +381,3 @@ export class XaiOAuthSession {
     })
   }
 }
-
-
