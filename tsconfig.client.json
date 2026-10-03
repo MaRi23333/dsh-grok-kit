@@ -22,5 +22,5 @@
     "rewriteRelativeImportExtensions": true,
     "types": []
   },
-  "include": ["src/client/**/*.ts", "src/client/**/*.tsx"]
+  "include": ["src/client/**/*.ts", "src/client/**/*.tsx", "tests/imagine-view.spec.ts"]
 }

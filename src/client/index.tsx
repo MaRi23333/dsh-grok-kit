@@ -17,6 +17,7 @@ import type { XaiOAuthSettingsInjected } from './XaiSettings.tsx'
 import { en, zh } from './locales.ts'
 import type { XaiOAuthSettingsKey } from './locales.ts'
 import { decorateSettingsNavIcon } from './nav-icon.ts'
+import { applyImagineViews } from './imagine-view.tsx'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -33,14 +34,17 @@ declare module '@deepseek-ai/cordis' {
       register(
         spec: {
           name: string
-          id: string
-          order: number
-          label: () => string
-          inject: () => XaiOAuthSettingsInjected
+          id?: string
+          key?: string
+          order?: number
+          label?: () => string
+          inject: () => unknown
         },
         component: unknown,
       ): () => void
     }
+    /** Session bindings used by the imagine result views (structural view). */
+    sessions: unknown
   }
 }
 
@@ -76,4 +80,8 @@ export function apply(ctx: Context): void {
   })
 
   decorateSettingsNavIcon(ctx)
+
+  // Session image views for grok_imagine / grok_imagine_edit, merged from
+  // the former dsh-grok-imagine-ui companion plugin.
+  applyImagineViews(ctx)
 }

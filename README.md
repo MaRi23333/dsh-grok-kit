@@ -1,5 +1,13 @@
 # dsh-grok-kit
 
+> **本仓库是 fork**（[KouzakiUmi/dsh-grok-kit](https://github.com/KouzakiUmi/dsh-grok-kit)），基线 v0.1.13。
+> 相对上游**只改了 `package.json` 的依赖与 peer 声明**，用来适配 DeepSeek Harness 0.2.0-rc.x 的顶层 pi-ai 0.87.1；
+> 源码与功能行为与上游一致。理由、安装、验证与同步上游的做法见 [FORK-NOTES.md](FORK-NOTES.md)。
+>
+> **fork v0.1.14（2026-10-01）**：吸收了两个本地卫星插件 `dsh-grok-imagine-edit`（图生图工具
+> `grok_imagine_edit`）与 `dsh-grok-imagine-ui`（会话图片视图），自此无需单独安装二者；详见
+> [FORK-NOTES.md](FORK-NOTES.md) 的合并记录。
+
 **中文** · [English](README.en.md)
 
 > **维护状态公告（2026-09-30）**

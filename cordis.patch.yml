@@ -16,3 +16,8 @@
         # DSH native function web_search is stripped from the payload to avoid
         # HTTP 400 Duplicate tool names: web_search.
         backendSearch: false
+        # grok_imagine_edit (image-to-image, POST /v1/images/edits), merged
+        # from the former dsh-grok-imagine-edit plugin. Independent of
+        # imagineTool above. editModel: '' = follow the live catalog
+        # (grok-imagine-image-2.0, fallback grok-imagine-image).
+        editTool: true

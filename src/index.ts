@@ -32,6 +32,8 @@ import { XaiOAuthSession } from './session.ts'
 import { XaiOAuthCredentialStore } from './store.ts'
 import { mergePluginOptions, readStoredOptions } from './options.ts'
 import { applyGrokImagineTool } from './imagine.ts'
+import { applyGrokImagineEditTool } from './imagine-edit.ts'
+import { DEFAULT_MAX_IMAGE_BYTES as DEFAULT_EDIT_MAX_IMAGE_BYTES, MAX_SOURCE_IMAGES as EDIT_MAX_SOURCE_IMAGES } from './imagine-edit-core.ts'
 import {
   applyGrokSearchTools,
   applyXaiServerSearchRejectTools,
@@ -102,6 +104,24 @@ export {
   sniffImageMediaType,
   XAI_IMAGES_URL,
 } from './imagine.ts'
+export {
+  applyGrokImagineEditTool,
+} from './imagine-edit.ts'
+export {
+  alignExtension,
+  buildEditRequestBody,
+  decodeFirstImage,
+  DEFAULT_EDIT_MODEL,
+  extensionFor as editExtensionFor,
+  MAX_N as EDIT_MAX_N,
+  normalizeDataImageUri,
+  parseAttachmentSpec,
+  resolveImageSources,
+  runImageEdit,
+  safeDetail,
+  sniffEditableImageMediaType,
+  XAI_IMAGES_EDIT_URL,
+} from './imagine-edit-core.ts'
 export {
   applyXaiResponsesPayload,
   isPreviousResponseError,
@@ -208,6 +228,18 @@ export interface Config {
   statefulResponses?: boolean
   /** Register grok_imagine. Default true. */
   imagineTool?: boolean
+  /**
+   * Register grok_imagine_edit (image-to-image over POST /v1/images/edits),
+   * merged from the former dsh-grok-imagine-edit plugin. Default true;
+   * independent of imagineTool.
+   */
+  editTool?: boolean
+  /** Pin the edit model; '' follows the live catalog (grok-imagine-image-2.0, fallback grok-imagine-image). */
+  editModel?: string
+  /** Per-request source-image cap for grok_imagine_edit. Defaults to 5 (xAI maximum). */
+  editMaxSourceImages?: number
+  /** Per-source byte cap for grok_imagine_edit. Defaults to 20 MiB. */
+  editMaxImageBytes?: number
 }
 
 export const Config: z<Config> = z.object({
@@ -220,6 +252,10 @@ export const Config: z<Config> = z.object({
   nestedSearchTools: z.boolean(),
   statefulResponses: z.boolean(),
   imagineTool: z.boolean().default(true),
+  editTool: z.boolean().default(true),
+  editModel: z.string().default(''),
+  editMaxSourceImages: z.number().default(EDIT_MAX_SOURCE_IMAGES),
+  editMaxImageBytes: z.number().default(DEFAULT_EDIT_MAX_IMAGE_BYTES),
 })
 
 /** Resolve nested-tool registration. `nestedSearchTools` omit stays undefined until here. */
@@ -313,6 +349,16 @@ export function apply(ctx: Context, config: Config): void {
       tokens,
       session,
       resolveAttachments: () => ctx.get('attachments'),
+    }))
+  }
+  if (effectiveConfig.editTool !== false) {
+    ctx.inject(['tools'], toolCtx => applyGrokImagineEditTool(toolCtx, {
+      tokens,
+      session,
+      resolveAttachments: () => ctx.get('attachments'),
+      editModel: effectiveConfig.editModel,
+      maxSourceImages: effectiveConfig.editMaxSourceImages,
+      maxImageBytes: effectiveConfig.editMaxImageBytes,
     }))
   }
 }

@@ -431,6 +431,169 @@ interface GrokImagineOptions {
 }
 declare function applyGrokImagineTool(ctx: Context, options: GrokImagineOptions): void;
 //#endregion
+//#region src/imagine-edit.d.ts
+interface GrokImagineEditOptions {
+  tokens: XaiOAuthTokenSource;
+  session: XaiOAuthSession;
+  resolveAttachments: () => AttachmentStore | undefined;
+  /** Pin the edit model; empty/undefined follows the live catalog. */
+  editModel?: string;
+  /** 1..5, clamped. */
+  maxSourceImages?: number;
+  /** Per-source byte cap. */
+  maxImageBytes?: number;
+  fetch?: typeof fetch;
+}
+/** Register grok_imagine_edit. Independent of imagineTool: either may be off. */
+declare function applyGrokImagineEditTool(ctx: Context, options: GrokImagineEditOptions): void;
+//#endregion
+//#region src/imagine-edit-core.d.ts
+/** xAI image-edit endpoint (sibling of the generations endpoint in imagine.ts). */
+declare const XAI_IMAGES_EDIT_URL = "https://api.x.ai/v1/images/edits";
+/** Same default/fallback model choice as the generations path. */
+declare const DEFAULT_EDIT_MODEL = "grok-imagine-image-2.0";
+/** xAI supports n; we keep only the first returned image. */
+declare const MAX_N = 4;
+/** Media-type sniffing by magic bytes, restricted to edit-accepted formats. */
+declare function sniffEditableImageMediaType(bytes: Uint8Array): 'image/png' | 'image/jpeg' | 'image/webp' | undefined;
+/** File extension for a saved result. */
+declare function extensionFor(mediaType: 'image/png' | 'image/jpeg' | 'image/webp'): string;
+/**
+ * Keep the save-path extension truthful about the returned media type.
+ * xAI edit results are often JPEG while the caller asked for `.png` — writing
+ * as-is would produce a mislabeled file other tools refuse to open. Only the
+ * extension changes; directory and stem stay untouched.
+ */
+declare function alignExtension(target: string, mediaType: 'image/png' | 'image/jpeg' | 'image/webp'): {
+  path: string;
+  note?: string;
+};
+/** Canonical `data:image/<png|jpeg|webp>;base64,…` form. */
+declare function normalizeDataImageUri(value: string): {
+  url: string;
+  origin: 'data-uri';
+} | undefined;
+interface EditAttachmentRef {
+  attachmentId: string;
+  mediaType: string;
+  bytes: number;
+  width: number;
+  height: number;
+  name?: string;
+}
+/**
+ * Parse a session image handle into an attachment reference.
+ *
+ * Accepted shapes (everything the model actually sees):
+ *   - full attachment JSON: `{"attachmentId":"sha256:…","mediaType":"image/png",…}`
+ *   - handle-line fragment: `[Codex Connect image 1 … attachment={…}]`
+ *   - labeled form: `attachmentId=sha256:…`
+ *   - bare id: `sha256:…`
+ *
+ * Only a full reference carries `ref` — then the caller can use the attachment
+ * service's `readImage` and let the store verify bytes; otherwise fall back to
+ * reading the host object path by id.
+ */
+declare function parseAttachmentSpec(value: string): {
+  attachmentId: string;
+  ref?: EditAttachmentRef;
+} | undefined;
+interface ResolvedImageSource {
+  url: string;
+  origin: 'url' | 'data-uri' | 'attachment' | 'file';
+  mediaType?: 'image/png' | 'image/jpeg' | 'image/webp';
+  bytes?: number;
+}
+interface ResolveImageSourcesOptions {
+  cwd?: string;
+  maxBytes?: number;
+  maxSourceImages?: number;
+  readFile?: (path: string) => Promise<Uint8Array>;
+  readAttachmentBytes?: (attachment: {
+    attachmentId: string;
+    ref?: EditAttachmentRef;
+  }) => Promise<Uint8Array>;
+}
+/**
+ * Resolve each caller-provided source into an xAI-ready `{ url }`.
+ * Public http(s) URLs, data URIs, and local file paths (absolute or relative
+ * to the session cwd) are supported, plus DSH session attachments.
+ */
+declare function resolveImageSources(specs: readonly string[], options?: ResolveImageSourcesOptions): Promise<ResolvedImageSource[]>;
+interface EditRequestBodyInput {
+  model?: string;
+  prompt: string;
+  images: readonly ResolvedImageSource[];
+  n?: number;
+  aspectRatio?: string;
+  resolution?: string;
+  responseFormat?: string;
+}
+/**
+ * Build the /v1/images/edits request body.
+ * One image uses `image`, several use `images` (mutually exclusive per xAI).
+ */
+declare function buildEditRequestBody(input: EditRequestBodyInput): Record<string, unknown>;
+/** Take the first returned image and sniff its real type. */
+declare function decodeFirstImage(parsed: {
+  data?: Array<{
+    b64_json?: string;
+  }>;
+}): {
+  bytes: Uint8Array;
+  mediaType: 'image/png' | 'image/jpeg' | 'image/webp';
+  returned: number;
+};
+/** Keep only the diagnostics-worthy fragment; never echo credentials. */
+declare function safeDetail(text: unknown): string;
+interface EditSaveResult {
+  text?: string;
+  attachmentId?: string;
+  mediaType?: string;
+  bytes?: number;
+  width?: number;
+  height?: number;
+  name?: string;
+  path?: string;
+  note?: string;
+}
+interface RunImageEditOptions {
+  tokens: XaiOAuthTokenSource;
+  prompt: string;
+  imageSpecs: readonly string[];
+  cwd?: string;
+  fetchImpl?: typeof fetch;
+  save: (bytes: Uint8Array, mediaType: 'image/png' | 'image/jpeg' | 'image/webp', meta: {
+    model: string;
+    n: number;
+    returned: number;
+  }) => Promise<EditSaveResult>;
+  signal?: AbortSignal;
+  model?: string;
+  n?: number;
+  aspectRatio?: string;
+  resolution?: string;
+  maxSourceImages?: number;
+  maxBytes?: number;
+  readFile?: (path: string) => Promise<Uint8Array>;
+  readAttachmentBytes?: ResolveImageSourcesOptions['readAttachmentBytes'];
+  logger?: (message: string) => void;
+}
+/**
+ * Run one image edit: parse sources → POST → decode → hand to `save`.
+ *
+ * The default fetch is the host-global one (already wrapped by dsh-grok-kit's
+ * xAI proxy hook, which covers api.x.ai).
+ */
+declare function runImageEdit(options: RunImageEditOptions): Promise<EditSaveResult & {
+  text: string;
+  mediaType: 'image/png' | 'image/jpeg' | 'image/webp';
+  bytes: number;
+  model: string;
+  sourceCount: number;
+  requestBodyKeys: string[];
+}>;
+//#endregion
 //#region src/redact.d.ts
 /** Remove token-like strings from an external OAuth diagnostic. */
 declare function safeMessage(error: unknown): string;
@@ -626,6 +789,18 @@ interface Config {
   statefulResponses?: boolean;
   /** Register grok_imagine. Default true. */
   imagineTool?: boolean;
+  /**
+   * Register grok_imagine_edit (image-to-image over POST /v1/images/edits),
+   * merged from the former dsh-grok-imagine-edit plugin. Default true;
+   * independent of imagineTool.
+   */
+  editTool?: boolean;
+  /** Pin the edit model; '' follows the live catalog (grok-imagine-image-2.0, fallback grok-imagine-image). */
+  editModel?: string;
+  /** Per-request source-image cap for grok_imagine_edit. Defaults to 5 (xAI maximum). */
+  editMaxSourceImages?: number;
+  /** Per-source byte cap for grok_imagine_edit. Defaults to 20 MiB. */
+  editMaxImageBytes?: number;
 }
 declare const Config: z<Config>;
 /** Resolve nested-tool registration. `nestedSearchTools` omit stays undefined until here. */
@@ -638,4 +813,4 @@ declare function resolveStatefulResponses(config: Config): boolean;
 /** Register the xai-oauth LLM route, OAuth routes, Imagine, and search wiring. */
 declare function apply(ctx: Context, config: Config): void;
 //#endregion
-export { type CatalogSource, Config, DEFAULT_IMAGINE_MODEL, DEFAULT_SEARCH_MAX_RESULTS, DEFAULT_WEB_SEARCH_TIMEOUT_MS, DEFAULT_XAI_OAUTH_MODEL, DEFAULT_XAI_SEARCH_MODEL, DEFAULT_X_SEARCH_TIMEOUT_MS, type EffectivePluginOptions, GROK_46_MODEL, GROK_XAI_CLIENT_ID, GROK_XAI_SLOT_KEY, type GrokImportProbe, type LoginChallenge, type OptionValueSource, PREFERRED_XAI_OAUTH_MODEL, type PresentedPluginOptions, type ResponseChainRecord, type ResponseChainStore, type SearchRequest, type SearchResult, type SearchSource, type StoredPluginOptions, XAI_BUILTIN_SEARCH_FUNCTION_NAMES, XAI_IMAGES_URL, XAI_MODELS_URL, XAI_OAUTH_AUTH_FILENAME, XAI_OAUTH_AUTH_IMPORT_PATH, XAI_OAUTH_AUTH_LOGIN_PATH, XAI_OAUTH_AUTH_LOGOUT_PATH, XAI_OAUTH_AUTH_MODELS_PATH, XAI_OAUTH_AUTH_OPTIONS_PATH, XAI_OAUTH_AUTH_PROXY_PATH, XAI_OAUTH_AUTH_STATUS_PATH, XAI_OAUTH_ROUTE, XAI_OAUTH_STREAM_IDLE_TIMEOUT_MS, XAI_PI_PROVIDER, XAI_RESPONSES_URL, XAI_SERVER_X_SEARCH_REJECT_NAMES, type XaiOAuthAuthStatus, XaiOAuthCredentialStore, XaiOAuthSearchError, XaiOAuthSearchProvider, XaiOAuthSession, type XaiOAuthTokenSource, type XaiOAuthWebAuthStatus, type XaiResponsesWrapOptions, type XaiSearchTool, apply, applyGrokImagineTool, applyGrokSearchTools, applyStatefulContinuation, applyXaiProxy, applyXaiResponsesPayload, applyXaiServerSearchRejectTools, breakStaleWriterLock, buildSearchToolPayload, capSources, catalogModels, clientInputDelta, createFileResponseChainStore, createMemoryResponseChainStore, createXaiOAuthAdapter, createXaiOAuthSearchTokenSource, extractClientInputItems, extractModelIds, fetchLiveModelIds, filterSelectedChatModelIds, fingerprintInputItem, formatGrokSearchOutput, grokAuthPath, imagineModelId, importGrokAuth, importXaiOAuthFromGrok, importXaiOAuthSession, includeForSearchTool, inject, installXaiFetchHook, isClientOriginatedInputItem, isComposerChatModel, isGrokAuthDocument, isGrokAuthPath, isPidAlive, isPreviousResponseError, isToolOutputInputItem, isUserInputItem, lockPathForAuthFile, loginXaiOAuth, loginXaiOAuthSession, logoutXaiOAuth, mapXaiSearchResponse, materializeLiveModel, mergeLiveCatalog, mergePluginOptions, name, optionsPath, parseGrokAuthDocument, parseGrokWebSearchArgs, parseLockPid, parseXSearchArgs, preferredXaiOAuthModel, preferredXaiOAuthModelFrom, presentPluginOptions, probeGrokAuth, readStoredOptions, readStoredProxyUrl, registerXaiOAuthAuthRoutes, removeGrokAuthSlot, resolveNestedSearchTools, resolveStatefulResponses, resolveXaiOAuthStorePath, resolveXaiProxyUrl, safeMessage, sanitizeRejectToolEvent, sanitizeStoredOptions, setXaiProxyUrl, sniffImageMediaType, stripRejectToolCalls, wrapXaiResponsesProvider, writeGrokAuthDocument, writeStoredOptions, writeStoredProxyUrl, xaiOAuthAuthPath, xaiOAuthAuthStatus, xaiProxyPath };
+export { type CatalogSource, Config, DEFAULT_EDIT_MODEL, DEFAULT_IMAGINE_MODEL, DEFAULT_SEARCH_MAX_RESULTS, DEFAULT_WEB_SEARCH_TIMEOUT_MS, DEFAULT_XAI_OAUTH_MODEL, DEFAULT_XAI_SEARCH_MODEL, DEFAULT_X_SEARCH_TIMEOUT_MS, MAX_N as EDIT_MAX_N, type EffectivePluginOptions, GROK_46_MODEL, GROK_XAI_CLIENT_ID, GROK_XAI_SLOT_KEY, type GrokImportProbe, type LoginChallenge, type OptionValueSource, PREFERRED_XAI_OAUTH_MODEL, type PresentedPluginOptions, type ResponseChainRecord, type ResponseChainStore, type SearchRequest, type SearchResult, type SearchSource, type StoredPluginOptions, XAI_BUILTIN_SEARCH_FUNCTION_NAMES, XAI_IMAGES_EDIT_URL, XAI_IMAGES_URL, XAI_MODELS_URL, XAI_OAUTH_AUTH_FILENAME, XAI_OAUTH_AUTH_IMPORT_PATH, XAI_OAUTH_AUTH_LOGIN_PATH, XAI_OAUTH_AUTH_LOGOUT_PATH, XAI_OAUTH_AUTH_MODELS_PATH, XAI_OAUTH_AUTH_OPTIONS_PATH, XAI_OAUTH_AUTH_PROXY_PATH, XAI_OAUTH_AUTH_STATUS_PATH, XAI_OAUTH_ROUTE, XAI_OAUTH_STREAM_IDLE_TIMEOUT_MS, XAI_PI_PROVIDER, XAI_RESPONSES_URL, XAI_SERVER_X_SEARCH_REJECT_NAMES, type XaiOAuthAuthStatus, XaiOAuthCredentialStore, XaiOAuthSearchError, XaiOAuthSearchProvider, XaiOAuthSession, type XaiOAuthTokenSource, type XaiOAuthWebAuthStatus, type XaiResponsesWrapOptions, type XaiSearchTool, alignExtension, apply, applyGrokImagineEditTool, applyGrokImagineTool, applyGrokSearchTools, applyStatefulContinuation, applyXaiProxy, applyXaiResponsesPayload, applyXaiServerSearchRejectTools, breakStaleWriterLock, buildEditRequestBody, buildSearchToolPayload, capSources, catalogModels, clientInputDelta, createFileResponseChainStore, createMemoryResponseChainStore, createXaiOAuthAdapter, createXaiOAuthSearchTokenSource, decodeFirstImage, extensionFor as editExtensionFor, extractClientInputItems, extractModelIds, fetchLiveModelIds, filterSelectedChatModelIds, fingerprintInputItem, formatGrokSearchOutput, grokAuthPath, imagineModelId, importGrokAuth, importXaiOAuthFromGrok, importXaiOAuthSession, includeForSearchTool, inject, installXaiFetchHook, isClientOriginatedInputItem, isComposerChatModel, isGrokAuthDocument, isGrokAuthPath, isPidAlive, isPreviousResponseError, isToolOutputInputItem, isUserInputItem, lockPathForAuthFile, loginXaiOAuth, loginXaiOAuthSession, logoutXaiOAuth, mapXaiSearchResponse, materializeLiveModel, mergeLiveCatalog, mergePluginOptions, name, normalizeDataImageUri, optionsPath, parseAttachmentSpec, parseGrokAuthDocument, parseGrokWebSearchArgs, parseLockPid, parseXSearchArgs, preferredXaiOAuthModel, preferredXaiOAuthModelFrom, presentPluginOptions, probeGrokAuth, readStoredOptions, readStoredProxyUrl, registerXaiOAuthAuthRoutes, removeGrokAuthSlot, resolveImageSources, resolveNestedSearchTools, resolveStatefulResponses, resolveXaiOAuthStorePath, resolveXaiProxyUrl, runImageEdit, safeDetail, safeMessage, sanitizeRejectToolEvent, sanitizeStoredOptions, setXaiProxyUrl, sniffEditableImageMediaType, sniffImageMediaType, stripRejectToolCalls, wrapXaiResponsesProvider, writeGrokAuthDocument, writeStoredOptions, writeStoredProxyUrl, xaiOAuthAuthPath, xaiOAuthAuthStatus, xaiProxyPath };
