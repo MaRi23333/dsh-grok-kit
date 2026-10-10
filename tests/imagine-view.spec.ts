@@ -77,6 +77,12 @@ describe('edit regeneration', () => {
     expect(text).toContain('全部图片（image 和 images）')
     expect(text).not.toContain('A'.repeat(100))
   })
+
+  it('trims sources before measuring and embedding them', () => {
+    const text = regenerateText('grok_imagine_edit', 'p', { image: '  first.png  ', images: ['  second.png'] })
+    expect(text).toContain('["first.png","second.png"]')
+    expect(text).not.toContain('  first.png')
+  })
 })
 
 /** Recursively expand rendered elements down to DOM nodes and text. */
@@ -185,6 +191,13 @@ describe('imagine views (merged from dsh-grok-imagine-ui)', () => {
     const pending = renderDeep(view({ block: { phase: 'start', argsRaw: JSON.stringify({ prompt: 'p' }) }, sessionId: 's1', sessions: SESSIONS }))
     expect(pending.texts).toContain('正在生成图片…')
     expect(pending.texts).toContain('p')
+  })
+
+  it('shows an edit-specific failure title for errored grok_imagine_edit calls', () => {
+    const view = toolViewFor(registrations, 'grok_imagine_edit')
+    const failed = renderDeep(view({ block: settledBlock('grok_imagine_edit', { prompt: 'p', image: 'x' }, [], true), sessionId: 's1', sessions: SESSIONS }))
+    expect(failed.texts).toContain('图片编辑失败')
+    expect(failed.texts).not.toContain('图片生成失败')
   })
 
   it('turn tail aggregates the turn image results and falls back to null when empty', () => {

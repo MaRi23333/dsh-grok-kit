@@ -295,21 +295,29 @@ function retryOn401(
         const refreshed = await options.tokenSource.refresh?.(options.rejected, options.signal)
         if (refreshed !== undefined && refreshed.length > 0 && refreshed !== options.rejected) {
           const second = options.retry(refreshed)
+          let retriedTerminal = false
           for await (const next of second) {
+            if (next.type === 'done' || next.type === 'error') retriedTerminal = true
             out.push(rewriteBackendSearchError(next, options.backendSearch))
           }
-          out.push(streamFailure(new Error('xAI chat stream ended without a terminal event'), options.model, options.signal))
+          if (!retriedTerminal) {
+            out.push(streamFailure(new Error('xAI chat stream ended without a terminal event'), options.model, options.signal))
+          }
           out.end()
           return
         }
       }
+      let sawTerminal = event.type === 'done' || event.type === 'error'
       out.push(rewriteBackendSearchError(event, options.backendSearch))
       while (true) {
         const step = await iterator.next()
         if (step.done) break
+        if (step.value.type === 'done' || step.value.type === 'error') sawTerminal = true
         out.push(rewriteBackendSearchError(step.value, options.backendSearch))
       }
-      out.push(streamFailure(new Error('xAI chat stream ended without a terminal event'), options.model, options.signal))
+      if (!sawTerminal) {
+        out.push(streamFailure(new Error('xAI chat stream ended without a terminal event'), options.model, options.signal))
+      }
       out.end()
     } catch (error: unknown) {
       // Never drop an error silently: an empty stream looks like a hang on the
@@ -338,6 +346,7 @@ function forwardStream(
     try {
       let source = inner
       let first = true
+      let sawTerminal = false
       for await (const event of source) {
         if (
           first
@@ -347,25 +356,32 @@ function forwardStream(
         ) {
           first = false
           source = extras.retryPrevious()
+          let retriedTerminal = false
           for await (const retried of source) {
+            if (retried.type === 'done' || retried.type === 'error') retriedTerminal = true
             const sanitized = backendSearch ? sanitizeRejectToolEvent(retried) : retried
             if (sanitized === undefined) continue
             const finished = finishedResponseOf(sanitized)
             if (finished !== undefined) extras.remember?.(finished.responseId, finished.stopReason)
             out.push(rewriteBackendSearchError(sanitized, backendSearch))
           }
-          out.push(streamFailure(new Error('xAI chat stream ended without a terminal event'), model, signal))
+          if (!retriedTerminal) {
+            out.push(streamFailure(new Error('xAI chat stream ended without a terminal event'), model, signal))
+          }
           out.end()
           return
         }
         first = false
+        if (event.type === 'done' || event.type === 'error') sawTerminal = true
         const sanitized = backendSearch ? sanitizeRejectToolEvent(event) : event
         if (sanitized === undefined) continue
         const finished = finishedResponseOf(sanitized)
         if (finished !== undefined) extras?.remember?.(finished.responseId, finished.stopReason)
         out.push(rewriteBackendSearchError(sanitized, backendSearch))
       }
-      out.push(streamFailure(new Error('xAI chat stream ended without a terminal event'), model, signal))
+      if (!sawTerminal) {
+        out.push(streamFailure(new Error('xAI chat stream ended without a terminal event'), model, signal))
+      }
       out.end()
     } catch (error: unknown) {
       console.error(`dsh-grok-kit: chat stream failed: ${safeMessage(error)}`)

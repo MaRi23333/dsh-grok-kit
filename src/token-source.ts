@@ -72,12 +72,10 @@ export function createXaiOAuthSearchTokenSource(session: XaiOAuthSession): XaiOA
 async function refreshRejected(
   session: XaiOAuthSession,
   rejectedAccessToken: string,
-  signal?: AbortSignal,
 ): Promise<string | undefined> {
-  signal?.throwIfAborted()
   const oauth = session.models.getProvider(XAI_PI_PROVIDER)?.auth.oauth
   if (oauth === undefined) return undefined
-  const refreshSignal = signal ?? new AbortController().signal
+  const refreshSignal = new AbortController().signal
   const current = await session.store.read(XAI_PI_PROVIDER)
   refreshSignal.throwIfAborted()
   if (current?.type !== 'oauth') return undefined

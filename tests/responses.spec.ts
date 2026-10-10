@@ -254,6 +254,179 @@ describe('wrapXaiResponsesProvider 401', () => {
   })
 })
 
+describe('wrapXaiResponsesProvider terminal-event tracking', () => {
+  // pi-ai's EventStream silently drops pushes after a terminal event, so the
+  // consumed event list alone cannot show a spurious trailing synthetic error.
+  // Spy on push to assert the wrapper never even attempts it.
+  const consume = async (terminal: () => AssistantMessageEvent) => {
+    const pushed: AssistantMessageEvent[] = []
+    const proto = Object.getPrototypeOf(createAssistantMessageEventStream()) as { push: (event: AssistantMessageEvent) => void }
+    const originalPush = proto.push
+    const spy = vi.spyOn(proto, 'push').mockImplementation(function (this: unknown, event: AssistantMessageEvent) {
+      pushed.push(event)
+      return originalPush.call(this, event)
+    })
+    try {
+      const inner: Provider = {
+        id: 'xai-oauth',
+        name: 'x',
+        auth: { apiKey: { name: 't', resolve: async () => undefined } },
+        getModels: () => [],
+        stream: () => createAssistantMessageEventStream(),
+        streamSimple() {
+          const stream = createAssistantMessageEventStream()
+          queueMicrotask(() => {
+            const end = terminal()
+            if (end.type === 'done') stream.push({ type: 'start', partial: end.message })
+            stream.push(end)
+            stream.end()
+          })
+          return stream
+        },
+      }
+      const wrapped = wrapXaiResponsesProvider(inner, { backendSearch: false, retry401: false })
+      const events: AssistantMessageEvent[] = []
+      pushed.length = 0
+      for await (const event of wrapped.streamSimple(GROK_46_MODEL as Model<'openai-responses'>, { messages: [] } as unknown as TranscriptContext, { apiKey: 'k' })) {
+        events.push(event)
+      }
+      return { events, pushed }
+    } finally {
+      spy.mockRestore()
+    }
+  }
+
+  it('does not append a synthetic error after a normal done event', async () => {
+    const { events, pushed } = await consume(doneEvent)
+    expect(events.filter(event => event.type === 'error')).toHaveLength(0)
+    expect(events.at(-1)?.type).toBe('done')
+    // inner start + done (inner stream) and wrapper start + done; no synthetic error attempt.
+    expect(pushed.filter(event => event.type === 'error')).toHaveLength(0)
+  })
+
+  it('does not append a second error after a terminal error event', async () => {
+    const { events, pushed } = await consume(() => errorEvent('OpenAI API error (403): no'))
+    expect(events.filter(event => event.type === 'error')).toHaveLength(1)
+    expect(events.at(-1)?.type).toBe('error')
+    // one error from the inner stream + one forwarded by the wrapper; never a synthetic third.
+    expect(pushed.filter(event => event.type === 'error')).toHaveLength(2)
+  })
+  const spyPushes = () => {
+    const pushed: AssistantMessageEvent[] = []
+    const proto = Object.getPrototypeOf(createAssistantMessageEventStream()) as { push: (event: AssistantMessageEvent) => void }
+    const originalPush = proto.push
+    const spy = vi.spyOn(proto, 'push').mockImplementation(function (this: unknown, event: AssistantMessageEvent) {
+      pushed.push(event)
+      return originalPush.call(this, event)
+    })
+    return { pushed, restore: () => spy.mockRestore() }
+  }
+
+  it('does not append a synthetic error after a successful 401 retry stream', async () => {
+    const refresh = vi.fn(async () => 'new-token')
+    const tokens: XaiOAuthTokenSource = { available: () => true, resolve: async () => 'old', refresh }
+    const inner: Provider = {
+      id: 'xai-oauth',
+      name: 'x',
+      auth: { apiKey: { name: 't', resolve: async () => undefined } },
+      getModels: () => [],
+      stream: () => createAssistantMessageEventStream(),
+      streamSimple(_model, _ctx, options) {
+        const stream = createAssistantMessageEventStream()
+        queueMicrotask(() => {
+          if (options?.apiKey === 'old') stream.push(errorEvent('OpenAI API error (401): expired'))
+          else {
+            const done = doneEvent()
+            if (done.type === 'done') stream.push({ type: 'start', partial: done.message })
+            stream.push(done)
+          }
+          stream.end()
+        })
+        return stream
+      },
+    }
+    const { pushed, restore } = spyPushes()
+    try {
+      const wrapped = wrapXaiResponsesProvider(inner, { backendSearch: false, retry401: true, tokenSource: tokens })
+      const events: AssistantMessageEvent[] = []
+      for await (const event of wrapped.streamSimple(GROK_46_MODEL as Model<'openai-responses'>, { messages: [] } as unknown as TranscriptContext, { apiKey: 'old' })) {
+        events.push(event)
+      }
+      expect(refresh).toHaveBeenCalledOnce()
+      expect(events.filter(event => event.type === 'error')).toHaveLength(0)
+      expect(events.at(-1)?.type).toBe('done')
+      // Only the inner stream's original 401; the wrapper must not push a synthetic one.
+      expect(pushed.filter(event => event.type === 'error')).toHaveLength(1)
+    } finally {
+      restore()
+    }
+  })
+
+  it('does not append a synthetic error after a successful previous_response retry stream', async () => {
+    const store = createMemoryResponseChainStore()
+    store.set('sess-1', {
+      responseId: 'stale',
+      fingerprints: [fingerprintInputItem({ role: 'user', content: 'q1' })],
+      model: 'grok-4.6',
+      updatedAt: 1,
+      stopReason: 'stop',
+    })
+    const inner: Provider = {
+      id: 'xai-oauth',
+      name: 'x',
+      auth: { apiKey: { name: 't', resolve: async () => undefined } },
+      getModels: () => [],
+      stream: () => createAssistantMessageEventStream(),
+      streamSimple(_model, _ctx, options) {
+        const stream = createAssistantMessageEventStream()
+        void Promise.resolve(options?.onPayload?.({
+          model: 'grok-4.6',
+          input: [{ role: 'user', content: 'q1' }, { role: 'user', content: 'q2' }],
+        }, GROK_46_MODEL)).then(result => {
+          const usedPrevious = typeof (result as { previous_response_id?: string } | undefined)?.previous_response_id === 'string'
+          queueMicrotask(() => {
+            if (usedPrevious) {
+              stream.push(errorEvent('OpenAI API error (400): previous_response_id not found'))
+            } else {
+              const done = doneEvent()
+              if (done.type === 'done') {
+                done.message.responseId = 'resp-fresh'
+                stream.push({ type: 'start', partial: done.message })
+                stream.push(done)
+              }
+            }
+            stream.end()
+          })
+        })
+        return stream
+      },
+    }
+    const { pushed, restore } = spyPushes()
+    try {
+      const wrapped = wrapXaiResponsesProvider(inner, {
+        backendSearch: false,
+        retry401: false,
+        statefulResponses: true,
+        chainStore: store,
+      })
+      const events: AssistantMessageEvent[] = []
+      for await (const event of wrapped.streamSimple(
+        GROK_46_MODEL as Model<'openai-responses'>,
+        { messages: [] } as unknown as TranscriptContext,
+        { sessionId: 'sess-1' },
+      )) {
+        events.push(event)
+      }
+      expect(events.filter(event => event.type === 'error')).toHaveLength(0)
+      expect(events.at(-1)?.type).toBe('done')
+      // Only the inner stream's original 400; the retried stream ends in done, so no synthetic error.
+      expect(pushed.filter(event => event.type === 'error')).toHaveLength(1)
+    } finally {
+      restore()
+    }
+  })
+})
+
 describe('stripRejectToolCalls', () => {
   it('removes x_keyword_search and turns a stub-only toolUse into stop', () => {
     const done = doneEvent()

@@ -18,7 +18,6 @@ import type { XaiOAuthSession } from './session.ts'
 import type { XaiOAuthTokenSource } from './token-source.ts'
 import { imagineModelId } from './imagine.ts'
 import {
-  DEFAULT_EDIT_MODEL,
   DEFAULT_MAX_IMAGE_BYTES,
   MAX_N,
   MAX_SOURCE_IMAGES,
@@ -227,7 +226,7 @@ export function applyGrokImagineEditTool(ctx: Context, options: GrokImagineEditO
         imageSpecs,
         cwd,
         fetchImpl,
-        model: editModel ?? imagineModelId(options.session.liveModelIds()) ?? DEFAULT_EDIT_MODEL,
+        model: editModel ?? imagineModelId(options.session.liveModelIds()),
         n,
         aspectRatio,
         resolution: typeof resolution === 'string' ? resolution : undefined,

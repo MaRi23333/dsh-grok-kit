@@ -112,7 +112,8 @@ function argsOf(block: unknown): Record<string, unknown> | undefined {
 export function regenerateText(toolName: string, prompt: string, args: Record<string, unknown> | undefined): string {
   if (toolName !== 'grok_imagine_edit') return `请用 grok_imagine 按以下提示词重新生成一张图，不要改写提示词：\n${prompt}`
   const sources = [args?.image, ...(Array.isArray(args?.images) ? args.images : [])]
-    .filter((source): source is string => typeof source === 'string' && source.length > 0)
+    .filter((source): source is string => typeof source === 'string' && source.trim().length > 0)
+    .map(source => source.trim())
   const hint = sources.length > 0 && sources.every(source => source.length <= 400)
     ? `输入图沿用全部这些来源（第一张为 image，其余为 images）：${JSON.stringify(sources)}`
     : '输入图沿用上一条 grok_imagine_edit 调用的全部图片（image 和 images）'
@@ -723,9 +724,10 @@ function GrokImagineToolView(rawProps: CardProps) {
     return <GeneratingCard {...props} />
   }
   if ((props.block as ToolCallBlock).isError === true) {
+    const failureTitle = toolNameOf(props.block) === 'grok_imagine_edit' ? '图片编辑失败' : '图片生成失败'
     return (
-      <section aria-label="图片生成失败" style={shellStyle}>
-        {grokTitle('图片生成失败')}
+      <section aria-label={failureTitle} style={shellStyle}>
+        {grokTitle(failureTitle)}
         <div style={{ ...detailStyle, whiteSpace: 'pre-wrap' }}>{promptOf(props.block)}</div>
         <div style={{ ...detailStyle, whiteSpace: 'pre-wrap' }}>{textOf(props.block)}</div>
         <SourceImages {...props} />
@@ -794,9 +796,13 @@ function GrokImagineTurnTail(rawProps: TurnTailProps) {
     return { subscribe: () => () => undefined, getSnapshot: () => rows }
   }, [])
   const chat = typeof props.useChat === 'function' ? props.useChat(chat => chat) : undefined
-  const source = props.turn !== undefined && typeof chat?.nodes.turnDataSource === 'function'
-    ? chat.nodes.turnDataSource(props.turn.turn, 'tool-call')
-    : empty
+  const source = useMemo<ExternalStore<ToolCallBlock[]>>(
+    () => (props.turn !== undefined && typeof chat?.nodes.turnDataSource === 'function'
+      ? chat.nodes.turnDataSource(props.turn.turn, 'tool-call')
+      : empty),
+    // Host turnDataSource may mint a fresh store per call; memoize so
+    // useSyncExternalStore keeps stable subscribe/getSnapshot references.
+    [chat, props.turn?.turn, empty])
   const legacyRows = useSyncExternalStore(source.subscribe, source.getSnapshot, source.getSnapshot)
   const rows = useMemo(() => typeof chat?.nodes.values === 'function'
     // ConversationLocation carries the TurnLocation object at `.turn`; the
