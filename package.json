@@ -1,7 +1,7 @@
 {
   "name": "dsh-grok-kit",
   "description": "Unofficial DeepSeek Harness plugin: Grok OAuth, fused web/X search, Imagine image generation and editing, experimental video generation, and session media cards.",
-  "version": "0.2.9",
+  "version": "0.2.10",
   "publishConfig": {
     "access": "public"
   },

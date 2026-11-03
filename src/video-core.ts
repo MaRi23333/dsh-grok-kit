@@ -536,7 +536,7 @@ export class VideoTaskManager {
         headers: {
           'content-type': 'application/json',
           accept: 'application/json',
-          'user-agent': 'dsh-grok-kit/0.2.9',
+          'user-agent': 'dsh-grok-kit/0.2.10',
         },
         body: JSON.stringify(body),
         signal: timed.signal,
@@ -852,7 +852,7 @@ export class VideoTaskManager {
         redirect: 'error',
         headers: {
           accept: 'application/json',
-          'user-agent': 'dsh-grok-kit/0.2.9',
+          'user-agent': 'dsh-grok-kit/0.2.10',
         },
         signal: pollTimed.signal,
       })
@@ -987,7 +987,7 @@ export class VideoTaskManager {
       const response = await this.fetchImpl(remoteUrl, {
         method: 'GET',
         redirect: 'error',
-        headers: { accept: 'video/mp4', 'user-agent': 'dsh-grok-kit/0.2.9' },
+        headers: { accept: 'video/mp4', 'user-agent': 'dsh-grok-kit/0.2.10' },
         signal: timed.signal,
       })
       if (!response.ok) {

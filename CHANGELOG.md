@@ -1,5 +1,12 @@
 # 更新记录 / Changelog
 
+## 0.2.10（2026-11-03）
+
+- 更新账户、模型、搜索、媒体和网络设置界面，改善宽窄窗口、明暗主题及键盘操作。
+- 新增按会话覆盖融合搜索的接入接口；辅助调用不继承对话搜索许可，切换搜索方式时重新回放会话。
+- 锁文件中的 Zod 从 4.6.5 更新至 4.6.7，修复上游资源耗尽漏洞；订阅权限与媒体风险确认不变。
+- Refresh the five-tab settings UI, add per-session fused-search integration, and update the locked Zod version to 4.6.7. Subscription entitlements and media risk confirmations are unchanged.
+
 ## 0.2.9（2026-10-22）
 
 - 更新首页 hero，展示现有的对话、网页/X 搜索及可选图片/视频能力；未新增功能，媒体仍默认关闭。
