@@ -68,12 +68,30 @@ Video results use the same card layout. Image generation, editing, and video are
 
 <br><br>
 
-### Account, models, and proxy
+### Settings: account, search, and media
+
+These real screenshots show the redesigned settings on the current `main` branch. The published npm 0.2.9 package does not yet include this redesign. Settings has five tabs: Account, Models, Search, Media, and Network.
+
+#### Account and quota
 
 <p align="center">
-  <img src="assets/readme/settings.png" width="620" alt="dsh-grok-kit settings: Grok CLI sign-in, model selection, and xAI-only proxy">
+  <img src="assets/readme/settings-account.png" width="900" alt="Grok Kit Account tab: sign-in status, remaining subscription quota, plan, balance, reset time, and a refresh quota button">
 </p>
-<p align="center"><em>Settings reuses the Grok CLI login, exposes account-visible models, and optionally configures a proxy for xAI only. <code>127.0.0.1</code> in the example is a loopback proxy address.</em></p>
+<p align="center"><em>The account page brings subscription usage and balance together, with a manual quota refresh. The values reflect this account at capture time, not the quota or plan available to every account.</em></p>
+
+#### Search and continuous conversation
+
+<p align="center">
+  <img src="assets/readme/settings-search.png" width="840" alt="Grok Kit Search tab: fused search enabled and continuous conversation disabled, both labeled experimental">
+</p>
+<p align="center"><em>Control Web / X search within the same reply and continuous conversation separately. Both are experimental and off by default; fused search was manually enabled in this screenshot.</em></p>
+
+#### Image and video tools
+
+<p align="center">
+  <img src="assets/readme/settings-media.png" width="840" alt="Grok Kit Media tab: image generation and editing enabled, with the grok_video tool disabled">
+</p>
+<p align="center"><em>The image switch controls generation and editing together and shows both current states; video has its own setting. All media features are experimental and off by default, requiring risk confirmation to enable. Video also requires a DSH restart, and availability depends on account eligibility and service-side restrictions.</em></p>
 
 <br><br>
 

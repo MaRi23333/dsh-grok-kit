@@ -68,12 +68,30 @@
 
 <br><br>
 
-### 账号、模型与代理
+### 设置页：账户、搜索与媒体
+
+以下为当前 `main` 分支新版设置页的实机截图；已发布的 npm 0.2.9 尚未包含这次界面改版。设置分为账户、模型、搜索、媒体和网络五页。
+
+#### 账户与配额
 
 <p align="center">
-  <img src="assets/readme/settings.png" width="620" alt="dsh-grok-kit 设置页：Grok CLI 登录、模型选择与 xAI 专用代理">
+  <img src="assets/readme/settings-account.png" width="900" alt="Grok Kit 账户页：登录状态、订阅剩余配额、套餐、余额、重置时间和刷新配额按钮">
 </p>
-<p align="center"><em>设置页复用 Grok CLI 登录，展示账号可见模型，并按需设置仅对 xAI 生效的网络代理。图中的 <code>127.0.0.1</code> 是本机回环代理示例。</em></p>
+<p align="center"><em>账户页集中展示订阅用量与余额，可手动刷新配额。图中数据是截图时该账号的状态，不代表所有账号的配额或套餐。</em></p>
+
+#### 搜索与连续对话
+
+<p align="center">
+  <img src="assets/readme/settings-search.png" width="840" alt="Grok Kit 搜索页：融合搜索已开启，连续对话已关闭，两项均标注为实验性功能">
+</p>
+<p align="center"><em>分别控制同一轮回答中的 Web / X 融合搜索与连续对话。两项均为实验性功能，默认关闭；图中融合搜索由用户手动开启。</em></p>
+
+#### 图片与视频工具
+
+<p align="center">
+  <img src="assets/readme/settings-media.png" width="840" alt="Grok Kit 媒体页：图片生成和编辑已开启，grok_video 视频工具已关闭">
+</p>
+<p align="center"><em>图片开关同时控制生成与编辑，并显示两项实际状态；视频工具单独设置。媒体能力均为实验性功能，默认关闭，需确认风险后启用；视频还需重启 DSH，实际可用性取决于账号资格与服务端限制。</em></p>
 
 <br><br>
 
