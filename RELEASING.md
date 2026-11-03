@@ -52,17 +52,19 @@ npm trust list dsh-grok-kit --json --registry=https://registry.npmjs.org/
 ```
 
 npm may require another browser 2FA flow even for `trust list`. The binding was
-completed on 2026-08-25; its first end-to-end proof will be the next real
-Release-driven npm version and its registry provenance.
+recorded as completed on 2026-08-25. Treat this as setup history, not proof
+for a new candidate: verify the workflow run and registry provenance for each
+release, and inspect the saved binding only when setup changes or fails.
 
 ## 1. Prepare and verify the version
 
-Update `package.json`, `package-lock.json`, version-bearing source constants, and
+Update `package.json`, `package-lock.json`, version-bearing source constants (including the assertions in `scripts/pack-install-smoke.mjs`), and
 committed build artifacts together. Then run:
 
 ```sh
 npm ci --ignore-scripts
 npm run check
+npm run lint
 git diff --exit-code -- lib
 npm pack --dry-run --ignore-scripts
 ```
@@ -75,9 +77,10 @@ clean after committing the release candidate.
 Create an **annotated** tag whose name is exactly `v${version}`:
 
 ```sh
-git tag -a v0.1.4 -m "dsh-grok-kit v0.1.4"
+version=$(node -p "require('./package.json').version")
+git tag -a "v$version" -m "dsh-grok-kit v$version"
 git push origin main
-git push origin v0.1.4
+git push origin "v$version"
 ```
 
 Do not use a lightweight tag and never move an existing published tag. The
