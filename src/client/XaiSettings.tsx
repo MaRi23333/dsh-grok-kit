@@ -14,6 +14,7 @@ import type { XaiOAuthSettingsKey } from './locales.ts'
 import { CapabilitiesView } from './capabilities-view.tsx'
 import { QuotaView } from './quota-view.tsx'
 import { mediaTogglePatch } from './media-options.ts'
+import { SettingsStyles } from './settings-ui.tsx'
 
 const STATUS_PATH = '/plugins/dsh-grok-kit/auth/status'
 const LOGIN_PATH = '/plugins/dsh-grok-kit/auth/login'
@@ -133,102 +134,18 @@ export interface XaiOAuthSettingsInjected {
 
 export type XaiOAuthSettingsProps = Partial<XaiOAuthSettingsInjected>
 
-/* ---- theme-aware styles (dsh `--dsw-alias-*` tokens; no external assets) ---- */
-
-const pageStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 18, maxWidth: 720 }
-const headerStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 14 }
-const logoStyle: CSSProperties = {
-  flex: '0 0 auto',
-  width: 40,
-  height: 40,
-  borderRadius: 12,
-  display: 'grid',
-  placeItems: 'center',
-  background: 'linear-gradient(135deg, var(--dsw-alias-brand-primary, #1677ff), #4f6bed)',
-  color: 'white',
-  fontSize: 22,
-  fontWeight: 700,
-  fontFamily: 'ui-sans-serif, system-ui, sans-serif',
-  lineHeight: 1,
-}
-const titleStyle: CSSProperties = { margin: 0, fontSize: 20, lineHeight: '28px', fontWeight: 600, color: 'var(--dsw-alias-label-primary)' }
-const bodyStyle: CSSProperties = { margin: 0, fontSize: 14, lineHeight: '22px', color: 'var(--dsw-alias-label-secondary)' }
-const cardStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 14, padding: '18px 20px', border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 12, background: 'var(--dsw-alias-bg-module-platform)' }
-const rowStyle: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }
-const statusStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 9, fontSize: 15, fontWeight: 500, color: 'var(--dsw-alias-label-primary)' }
-const buttonStyle: CSSProperties = { boxSizing: 'border-box', minHeight: 34, padding: '6px 14px', border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 18, background: 'var(--dsw-alias-bg-layer-1)', color: 'var(--dsw-alias-label-primary)', font: 'inherit', fontSize: 14, cursor: 'pointer' }
-// brand-primary flips with the theme (dark theme: near-white fill), so the
-// label uses the matching foreground token instead of a hardcoded white.
-const primaryButtonStyle: CSSProperties = { ...buttonStyle, borderColor: 'var(--dsw-alias-brand-primary)', background: 'var(--dsw-alias-brand-primary)', color: 'var(--dsw-alias-label-primary-foreground, white)' }
-const errorStyle: CSSProperties = { ...bodyStyle, color: 'var(--dsw-alias-state-error-primary)' }
-const mediaConfirmStyle: CSSProperties = {
-  border: '1px solid var(--dsw-alias-state-error-primary)',
-  borderRadius: 6,
-  padding: '8px 10px',
-  margin: '6px 0',
-}
-const experimentalTagStyle: CSSProperties = {
-  fontSize: 11,
-  lineHeight: '18px',
-  padding: '0 6px',
-  borderRadius: 4,
-  border: '1px solid currentColor',
-  color: 'var(--dsw-alias-label-secondary, inherit)',
-}
-const codeBoxStyle: CSSProperties = { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 10, padding: '10px 14px', border: '1px dashed var(--dsw-alias-border-l2)', borderRadius: 10, background: 'var(--dsw-alias-bg-layer-1)' }
-const codeStyle: CSSProperties = { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', fontSize: 20, letterSpacing: '0.08em', fontWeight: 600, color: 'var(--dsw-alias-label-primary)' }
-const linkStyle: CSSProperties = { color: 'var(--dsw-alias-brand-primary)', wordBreak: 'break-all' }
-const listStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4, margin: 0, padding: 0, listStyle: 'none' }
-const modelRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 10, padding: '6px 10px', borderRadius: 8, color: 'var(--dsw-alias-label-primary)' }
-const modelNameStyle: CSSProperties = { fontSize: 14, fontWeight: 500 }
-const modelIdStyle: CSSProperties = { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', fontSize: 12, color: 'var(--dsw-alias-label-tertiary, #81858c)' }
-const optionRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: 'var(--dsw-alias-label-primary)', flexWrap: 'wrap' }
-const optionHintStyle: CSSProperties = { ...bodyStyle, fontSize: 12, margin: 0, color: 'var(--dsw-alias-label-tertiary, #81858c)' }
-const optionInputStyle: CSSProperties = {
-  flex: '1 1 200px',
-  minHeight: 30,
-  padding: '4px 10px',
-  border: '1px solid var(--dsw-alias-border-l2)',
-  borderRadius: 8,
-  background: 'var(--dsw-alias-bg-layer-1)',
-  color: 'var(--dsw-alias-label-primary)',
-  font: 'inherit',
-  fontSize: 13,
-}
-const badgeStyle: CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 9px', borderRadius: 999, border: '1px solid var(--dsw-alias-border-l2)', fontSize: 12, fontWeight: 500, color: 'var(--dsw-alias-label-secondary)', whiteSpace: 'nowrap' }
-const sourceBadgeStyle: CSSProperties = { ...badgeStyle, fontWeight: 600 }
-/* Sticky header: match the host Modal surface so its background blends into
-   the settings panel. Keep it opaque and above the cards so scrolling content
-   cannot show through the shared title, account status or navigation. */
+/* Match the host scroll surface; keep navigation above page content. */
 const stickyBarStyle: CSSProperties = {
   position: 'sticky',
   top: 0,
   zIndex: 1,
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 12,
-  padding: '12px 0 14px',
   background: 'var(--dsw-alias-bg-layer-2, var(--dsw-alias-bg-base))',
 }
-const commonStatusStyle: CSSProperties = { ...statusStyle, fontSize: 13, flexWrap: 'wrap' }
-const tabBarStyle: CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: 8 }
-const tabStyle: CSSProperties = { ...buttonStyle, minHeight: 30, padding: '4px 12px', fontSize: 13 }
-const activeTabStyle: CSSProperties = {
-  ...buttonStyle,
-  minHeight: 30,
-  padding: '4px 12px',
-  fontSize: 13,
-  borderColor: 'var(--dsw-alias-brand-primary)',
-  background: 'var(--dsw-alias-brand-primary)',
-  color: 'var(--dsw-alias-label-primary-foreground, white)',
-  fontWeight: 600,
-}
-const pageStyleInner: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 18 }
 
 function sourceBadge(source: CatalogSource | undefined): { text: string; color: string } {
   switch (source) {
     case 'live': return { text: 'Live', color: 'var(--dsw-alias-state-success-primary, #22a06b)' }
-    case 'cache': return { text: 'Cached', color: 'var(--dsw-alias-brand-primary, #4f6bed)' }
+    case 'cache': return { text: 'Cached', color: 'var(--gk-muted)' }
     case 'fallback': return { text: 'Fallback', color: 'var(--dsw-alias-label-tertiary, #81858c)' }
     case undefined: return { text: '—', color: 'var(--dsw-alias-label-tertiary, #81858c)' }
     default: return { text: '—', color: 'var(--dsw-alias-label-tertiary, #81858c)' }
@@ -241,7 +158,7 @@ function dotStyle(status: AccountStatus['status']): CSSProperties {
     : status === 'error'
       ? 'var(--dsw-alias-state-error-primary, #d92d20)'
       : status === 'signing-in' || status === 'loading'
-        ? 'var(--dsw-alias-brand-primary, #1677ff)'
+        ? 'var(--gk-muted)'
         : 'var(--dsw-alias-label-tertiary, #81858c)'
   return { width: 9, height: 9, borderRadius: '50%', flex: '0 0 auto', background: color }
 }
@@ -327,6 +244,9 @@ export function XaiSettings({ t }: XaiOAuthSettingsProps) {
   // An off→on media toggle parks here for the inline risk confirmation; the
   // switch does not move until the user confirms inside the card.
   const [pendingMediaGroup, setPendingMediaGroup] = useState<'images' | 'video' | null>(null)
+  const mediaConfirmRef = useRef<HTMLDivElement | null>(null)
+  const mediaImageRef = useRef<HTMLInputElement | null>(null)
+  const mediaVideoRef = useRef<HTMLInputElement | null>(null)
   // Bumped by every account-changing action (sign-in, Grok import, sign-out).
   // Together with the account status it keys <CapabilitiesView/> so the panel
   // remounts: fresh fetches, aborted in-flight work, revoked blob URLs, and no
@@ -336,6 +256,13 @@ export function XaiSettings({ t }: XaiOAuthSettingsProps) {
   // Active page. Only the active page body is mounted; every draft it owns
   // still lives here, so switching pages never discards an unsaved edit.
   const [page, setPage] = useState<SettingsPageId>('account')
+  useEffect(() => {
+    if (page !== 'media' || pendingMediaGroup === null) return
+    // Bring the whole inline confirmation into view, including for keyboard
+    // users. Focus returns to the initiating switch after either decision.
+    mediaConfirmRef.current?.focus({ preventScroll: true })
+    mediaConfirmRef.current?.scrollIntoView({ block: 'center' })
+  }, [page, pendingMediaGroup])
   // A saved video choice/revocation also invalidates the local runtime
   // capability snapshot, without probing upstream or reloading the account.
   const [capabilityGeneration, setCapabilityGeneration] = useState(0)
@@ -467,6 +394,13 @@ export function XaiSettings({ t }: XaiOAuthSettingsProps) {
   const cancelPendingMedia = (): void => {
     setPendingMediaGroup(null)
     setOptionsFeedback(previous => previous?.page === 'media' ? undefined : previous)
+  }
+
+  const restoreMediaFocus = (): void => {
+    // Actual input refs update on remount if a pending confirmation survived
+    // a page switch; an event-captured DOM node could already be detached.
+    const input = pendingMediaGroup === 'images' ? mediaImageRef.current : mediaVideoRef.current
+    input?.focus()
   }
 
   const loadOptions = useCallback(async () => {
@@ -759,447 +693,200 @@ export function XaiSettings({ t }: XaiOAuthSettingsProps) {
    *  quota reading, capability record and task rows. */
   const accountKey = `${status.status}:${String(accountGeneration)}`
 
-  /** Save / reset row: always names the page whose own options it acts on. */
+  /** Saves stay scoped to the active page. The stage strip describes the
+   *  draft, never guesses whether the host has already reloaded its tools. */
   const optionActions = (pageId: SettingsPageId) => (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-      {pageHasDraft(pageId) ? <p role="status" style={{ ...bodyStyle, margin: 0, width: '100%' }}>{t('unsavedChangesHint')}</p> : null}
-      <button type="button" style={buttonStyle} disabled={optionsBusy || !pageHasDraft(pageId)} onClick={() => { void saveOptions(pageId) }}>
-        {optionsBusy ? t('working') : `${t('optionsSave')} · ${t(PAGE_LABEL_KEYS[pageId])}`}
-      </button>
-      <button type="button" style={buttonStyle} disabled={optionsBusy} onClick={() => { void resetOptions(pageId) }}>
-        {`${t('optionsReset')} · ${t(PAGE_LABEL_KEYS[pageId])}`}
-      </button>
-      {feedbackFor(pageId) === 'saved'
-        ? <p role="status" style={{ ...bodyStyle, margin: 0, color: 'var(--dsw-alias-state-success-primary, #22a06b)' }}>{t('optionsSaved')}</p>
-        : null}
-      {feedbackFor(pageId) === 'error'
-        ? <p role="alert" style={{ ...errorStyle, margin: 0 }}>{t('optionsError')}</p>
-        : null}
-    </div>
+    <footer className="gk-footer">
+      <div className="gk-stages" aria-hidden="true">
+        <span className={pageHasDraft(pageId) ? 'gk-stage-current' : undefined}><i className="gk-stage-dot" />{t('stageEdit')}</span>
+        <span className={optionsBusy || feedbackFor(pageId) === 'saved' ? 'gk-stage-current' : undefined}><i className="gk-stage-dot" />{optionsBusy ? t('working') : t('stageSave')}</span>
+        <span><i className="gk-stage-dot" />{t('stageRestart')}</span>
+      </div>
+      {pageHasDraft(pageId) ? <p role="status" className="gk-feedback">{t('unsavedChangesHint')}</p> : null}
+      <div className="gk-actions">
+        <button type="button" className="gk-button gk-button--primary" disabled={optionsBusy || !pageHasDraft(pageId)} onClick={() => { void saveOptions(pageId) }}>
+          {optionsBusy ? t('working') : `${t('optionsSave')} · ${t(PAGE_LABEL_KEYS[pageId])}`}
+        </button>
+        <button type="button" className="gk-button" disabled={optionsBusy} onClick={() => { void resetOptions(pageId) }}>
+          {`${t('optionsReset')} · ${t(PAGE_LABEL_KEYS[pageId])}`}
+        </button>
+      </div>
+      {feedbackFor(pageId) === 'saved' ? <p role="status" className="gk-feedback gk-success">{t('optionsSaved')}</p> : null}
+      {feedbackFor(pageId) === 'error' ? <p role="alert" className="gk-feedback gk-error">{t('optionsError')}</p> : null}
+    </footer>
   )
 
+  const nestedMode = optionsDirty.has('nestedSearchTools')
+    ? options.nestedSearchTools === undefined ? 'auto' : String(options.nestedSearchTools)
+    : storedOptions.nestedSearchTools === undefined ? 'auto' : String(storedOptions.nestedSearchTools)
+  const compactStatus = status.status === 'signed-in' ? t('signedIn') : status.status === 'signed-out' ? t('signedOut') : label
+
   return (
-    <section style={pageStyle} aria-labelledby="xai-oauth-settings-title">
-      {/* Sticky header: the shared title, the account status every page shows
-          and the five-page navigation. Plain buttons with aria-current — the
-          host settings dialog owns its own focus handling. */}
-      <div style={stickyBarStyle}>
-        <header style={headerStyle}>
-          <div style={logoStyle} aria-hidden="true">ɡ</div>
-          <div style={{ minWidth: 0 }}>
-            <h2 id="xai-oauth-settings-title" style={titleStyle}>{t('title')}</h2>
-            <p style={{ ...bodyStyle, marginTop: 4 }}>{t('intro')}</p>
+    <section className="grok-settings" aria-labelledby="xai-oauth-settings-title">
+      <SettingsStyles />
+      <div className="gk-header" style={stickyBarStyle}>
+        <header className="gk-brand-row">
+          <h2 id="xai-oauth-settings-title"><span className="gk-wordmark" aria-hidden="true">GROK<small>KIT</small></span><span className="gk-sr-only">{t('title')}</span></h2>
+          <div className={`gk-status${status.status === 'signed-in' ? ' gk-status--success' : ''}`} role="status" title={label}>
+            <span aria-hidden="true" style={dotStyle(status.status)} />
+            <span aria-hidden="true">{compactStatus}</span><span className="gk-sr-only">{t('statusLabel')}: {label}</span>
           </div>
         </header>
-        <div style={commonStatusStyle} role="status">
-          <span aria-hidden="true" style={dotStyle(status.status)} />
-          <span style={{ color: 'var(--dsw-alias-label-secondary)' }}>{t('statusLabel')}</span>
-          <span>{label}</span>
-        </div>
-        <nav aria-label={t('nav')} style={tabBarStyle}>
+        <nav aria-label={t('nav')} className="gk-nav">
           {SETTINGS_PAGES.map(id => (
-            <button
-              key={id}
-              type="button"
-              style={page === id ? activeTabStyle : tabStyle}
-              aria-current={page === id ? 'page' : undefined}
+            <button key={id} type="button" aria-current={page === id ? 'page' : undefined}
               aria-label={pageHasDraft(id) ? `${t(PAGE_LABEL_KEYS[id])} — ${t('unsavedChanges')}` : t(PAGE_LABEL_KEYS[id])}
-              title={pageHasDraft(id) ? t('unsavedChangesHint') : undefined}
-              onClick={() => { setPage(id) }}
-            >
-              {pageHasDraft(id)
-                ? <>{t(PAGE_LABEL_KEYS[id])}<span aria-hidden="true"> •</span></>
-                : t(PAGE_LABEL_KEYS[id])}
+              title={pageHasDraft(id) ? t('unsavedChangesHint') : undefined} onClick={() => { setPage(id) }}>
+              {t(id === 'search' ? 'navSearchShort' : id === 'media' ? 'navMediaShort' : PAGE_LABEL_KEYS[id])}
+              {pageHasDraft(id) ? <span className="gk-nav-dirty" aria-hidden="true" /> : null}
             </button>
           ))}
         </nav>
       </div>
 
-      {/* Account page: the shared quota reading and the auth actions. */}
-      {page === 'account'
-        ? (
-            <div style={pageStyleInner}>
-              <QuotaView key={accountKey} t={t} signedIn={status.status === 'signed-in'} accountLoading={status.status === 'loading' || status.status === 'signing-in'} />
-              <div style={cardStyle}>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                  {status.status === 'loading'
-                    ? null
-                    : status.status === 'signed-in'
-                      ? <>
-                          <button type="button" style={buttonStyle} disabled={busy} onClick={() => { void signIn() }}>{busy ? t('working') : t('loginAgain')}</button>
-                          <button type="button" style={buttonStyle} disabled={busy} onClick={() => { void signOut() }}>{busy ? t('working') : t(shared ? 'logoutShared' : 'logout')}</button>
-                        </>
-                      : (
-                          <>
-                            <button type="button" style={primaryButtonStyle} disabled={busy || status.status === 'signing-in'} onClick={() => { void signIn() }}>{busy ? t('working') : status.status === 'error' ? t('loginAgain') : t(shared ? 'loginShared' : 'login')}</button>
-                            {status.grokImportAvailable === true
-                              ? <button type="button" style={buttonStyle} disabled={busy} onClick={() => { void importGrok() }}>{t('importGrok')}</button>
-                              : null}
-                          </>
-                        )}
-                </div>
+      {page === 'account' ? (
+        <div className="gk-page" role="region" aria-label={t('navAccount')}>
+          <QuotaView key={accountKey} t={t} signedIn={status.status === 'signed-in'} accountLoading={status.status === 'loading' || status.status === 'signing-in'} />
+          <div className="gk-stack">
+            <div className="gk-actions">
+              {status.status === 'loading' ? null : status.status === 'signed-in' ? <>
+                <button type="button" className="gk-button gk-button--primary" disabled={busy} onClick={() => { void signIn() }}>{busy ? t('working') : t('loginAgain')}</button>
+                <button type="button" className="gk-button" disabled={busy} onClick={() => { void signOut() }}>{busy ? t('working') : t(shared ? 'logoutShared' : 'logout')}</button>
+              </> : <>
+                <button type="button" className="gk-button gk-button--primary" disabled={busy || status.status === 'signing-in'} onClick={() => { void signIn() }}>{busy ? t('working') : status.status === 'error' ? t('loginAgain') : t(shared ? 'loginShared' : 'login')}</button>
+                {status.grokImportAvailable === true ? <button type="button" className="gk-button" disabled={busy} onClick={() => { void importGrok() }}>{t('importGrok')}</button> : null}
+              </>}
+            </div>
+            {status.status === 'error' ? <p role="alert" className="gk-feedback gk-error">{status.message}</p> : null}
+            {status.status === 'signed-in' && status.loginError !== undefined ? <p role="status" className="gk-feedback gk-error">{t('loginFailedStoredAccount')} {status.loginError}</p> : null}
+            {shared ? <p className="gk-hint">{t('sharedGrok')}</p> : null}
+            {status.status !== 'signed-in' && status.status !== 'loading' && status.grokImportAvailable === true ? <p className="gk-hint">{t('importHint')}</p> : null}
+            {status.status === 'signing-in' && status.userCode !== undefined ? <div className="gk-panel gk-stack"><p className="gk-hint">{t('userCode')}</p><p className="gk-code">{status.userCode}</p></div> : null}
+            {status.status === 'signing-in' && status.url !== undefined ? <p className="gk-hint">{t(popupBlocked ? 'popupBlocked' : 'openUrl')} <a href={status.url} target="_blank" rel="noreferrer">{status.url}</a></p> : null}
+            <a className="gk-hint" href="https://grok.com/dashboard" target="_blank" rel="noreferrer">{t('subscriptionDashboard')} ↗</a>
+            <details className="gk-details"><summary>{t('accountDetails')}</summary><div className="gk-stack"><p className="gk-hint">{t('intro')}</p><p className="gk-hint">{t('subscriptionLoginHint')}</p></div></details>
+            <p className="gk-hint">{t('unofficialNotice')}</p>
+          </div>
+        </div>
+      ) : null}
 
-                <p style={bodyStyle}>{t('subscriptionLoginHint')}</p>
-                <a href="https://grok.com/dashboard" target="_blank" rel="noreferrer" style={linkStyle}>{t('subscriptionDashboard')}</a>
+      {page === 'models' ? (
+        <div className="gk-page" role="region" aria-label={t('navModels')}>
+          {status.status === 'signed-in' ? <>
+            <div className="gk-brand-row">
+              <div className="gk-model-count"><span className="gk-numeric">{String(selectedIds.length).padStart(2, '0')}</span><span className="gk-hint">/ {modelIds.length} · {t('modelsSelected')}</span></div>
+              <button type="button" className="gk-button" disabled={busy} onClick={() => { void saveModels([]) }}>{t('selectAll')}</button>
+            </div>
+            <p className="gk-hint">{t('modelHint')}</p>
+            <div className="gk-status">{source === null ? null : <span style={{ color: source.color }}>{source.text}</span>}<span className="gk-hint">{status.catalogSource === 'live' ? t('catalogLive') : status.catalogSource === 'cache' ? t('catalogCache') : t('catalogFallback')}</span></div>
+            <ul className="gk-models">{modelIds.map(id => {
+              const checked = selectedIds.includes(id)
+              return <li key={id}><label className="gk-model-row"><span><b>{displayName(id)}</b><span className="gk-model-id">{id}</span></span><input type="checkbox" checked={checked} disabled={busy} onChange={() => {
+                const current = new Set(selectedIds)
+                if (checked) current.delete(id)
+                else current.add(id)
+                void saveModels([...current])
+              }} /></label></li>
+            })}</ul>
+            <p className="gk-hint">{t('modelsImmediate')}</p>
+            {status.catalogError === undefined ? null : <p className="gk-feedback gk-error">{t('catalogError')}</p>}
+          </> : <div className="gk-panel gk-stack"><p className="gk-empty">{status.status === 'loading' || status.status === 'signing-in' ? t('loadingAccount') : t('modelsSignIn')}</p><button type="button" className="gk-button" onClick={() => { setPage('account') }}>{t('navAccount')}</button></div>}
+        </div>
+      ) : null}
 
-                {/* dsh 0.1.2 repurposed --dsw-alias-label-dimmed to a near-invisible
-                    tint (light: neutral-bluish-200) and removed state-info-primary;
-                    the disclaimer is legally required text, so it keeps a readable
-                    secondary color, and hints follow the host's tertiary convention. */}
-                <p style={{ ...bodyStyle, fontSize: 12, color: 'var(--dsw-alias-label-secondary, #61666b)' }}>{t('unofficialNotice')}</p>
-
-                {status.status === 'error' ? <p style={errorStyle}>{status.message}</p> : null}
-                {status.status === 'signed-in' && status.loginError !== undefined
-                  ? <p role="status" style={errorStyle}>{t('loginFailedStoredAccount')}{' '}{status.loginError}</p>
-                  : null}
-                {status.status !== 'loading' && status.sharedGrokAuth === true
-                  ? <p style={bodyStyle}>{t('sharedGrok')}</p>
-                  : null}
-                {status.status !== 'signed-in' && status.status !== 'loading' && status.grokImportAvailable === true
-                  ? <p style={bodyStyle}>{t('importHint')}</p>
-                  : null}
-
-                {status.status === 'signing-in' && status.userCode !== undefined
-                  ? (
-                      <div style={codeBoxStyle}>
-                        <span style={bodyStyle}>{t('userCode')}</span>
-                        <span style={codeStyle}>{status.userCode}</span>
-                      </div>
-                    )
-                  : null}
-                {status.status === 'signing-in' && status.url !== undefined
-                  ? (
-                      <p style={bodyStyle}>
-                        {t(popupBlocked ? 'popupBlocked' : 'openUrl')}
-                        {' '}
-                        <a href={status.url} target="_blank" rel="noreferrer" style={linkStyle}>{status.url}</a>
-                      </p>
-                    )
-                  : null}
+      {page === 'search' ? (
+        <div className="gk-page" role="region" aria-label={t('navSearch')}>
+          <div className="gk-feature">
+            <div className="gk-setting">
+              <label className="gk-setting-label"><span><b>{t('backendSearch')}</b><span className="gk-tag">{t('experimentalTag')}</span></span><input className="gk-switch" type="checkbox" checked={optBool(options.backendSearch, false)} disabled={optionsBusy} onChange={event => markOption('backendSearch', event.target.checked)} /></label>
+              <p className="gk-hint">{t('backendSearchHint')}</p>
+            </div>
+            <div className="gk-setting">
+              <label className="gk-setting-label"><span><b>{t('statefulResponses')}</b><span className="gk-tag">{t('experimentalTag')}</span></span><input className="gk-switch" type="checkbox" checked={optBool(options.statefulResponses, false)} disabled={optionsBusy} onChange={event => markOption('statefulResponses', event.target.checked)} /></label>
+              <p className="gk-hint">{t('statefulResponsesHint')}</p>
+            </div>
+          </div>
+          <div className="gk-stack">
+            <label className="gk-setting-label"><b>{t('nestedSearchTools')}</b><select className="gk-input gk-select" value={nestedMode} disabled={optionsBusy} onChange={event => markOption('nestedSearchTools', event.target.value === 'auto' ? undefined : event.target.value === 'true')}><option value="auto">{t('nestedSearchToolsAuto')}</option><option value="true">{t('mediaOn')}</option><option value="false">{t('mediaOff')}</option></select></label>
+            <p className="gk-hint">{t('nestedSearchToolsHint')}</p>
+            <p className="gk-status"><span aria-hidden="true" style={{ width: 5, height: 5, borderRadius: '50%', background: 'currentColor' }} />{t(nestedMode === 'auto' ? 'nestedDraftAuto' : nestedMode === 'true' ? 'nestedDraftOn' : 'nestedDraftOff')}</p>
+            <div className="gk-telemetry" aria-label={t('searchParameters')}>
+              <div><div className="gk-reading"><span className="gk-numeric">{options.searchMaxResults === undefined ? '—' : String(options.searchMaxResults).padStart(2, '0')}</span></div><p className="gk-telemetry-label">{t('searchMaxResults')}</p></div>
+              <div><div className="gk-reading"><span className="gk-numeric">{options.webSearchTimeoutMs === undefined ? '—' : Number(options.webSearchTimeoutMs) / 1000}</span><small>s</small></div><p className="gk-telemetry-label">{t('webTimeoutShort')}</p></div>
+              <div><div className="gk-reading"><span className="gk-numeric">{options.xSearchTimeoutMs === undefined ? '—' : Number(options.xSearchTimeoutMs) / 1000}</span><small>s</small></div><p className="gk-telemetry-label">{t('xTimeoutShort')}</p></div>
+            </div>
+            <details className="gk-details"><summary>{t('searchParameters')}</summary><div className="gk-stack">
+              <label className="gk-field"><span>{t('searchModel')}</span><input className="gk-input" type="text" value={String(options.searchModel ?? '')} placeholder="grok-build-0.1" disabled={optionsBusy} onChange={event => markOption('searchModel', event.target.value.trim() === '' ? undefined : event.target.value)} /></label>
+              <p className="gk-hint">{t('searchModelHint')}</p>
+              <div className="gk-fields">
+                <label className="gk-field"><span>{t('searchMaxResults')}</span><input className="gk-input" type="number" min={1} value={String(options.searchMaxResults ?? '')} placeholder="8" disabled={optionsBusy} onChange={event => markOptionNumber('searchMaxResults', event.target.value)} /></label>
+                <label className="gk-field"><span>{t('webSearchTimeoutMs')}</span><input className="gk-input" type="number" min={1000} value={String(options.webSearchTimeoutMs ?? '')} placeholder="60000" disabled={optionsBusy} onChange={event => markOptionNumber('webSearchTimeoutMs', event.target.value)} /></label>
+                <label className="gk-field"><span>{t('xSearchTimeoutMs')}</span><input className="gk-input" type="number" min={1000} value={String(options.xSearchTimeoutMs ?? '')} placeholder="120000" disabled={optionsBusy} onChange={event => markOptionNumber('xSearchTimeoutMs', event.target.value)} /></label>
               </div>
+              <p className="gk-hint">{t('searchMaxResultsHint')} · {t('webSearchTimeoutHint')} · {t('xSearchTimeoutHint')}</p>
+            </div></details>
+            <details className="gk-details"><summary>{t('optionsHowTo')}</summary><p className="gk-hint">{t('optionsHint')}</p></details>
+          </div>
+        </div>
+      ) : null}
+
+      {page === 'media' ? (
+        <div className="gk-page" role="region" aria-label={t('navMedia')}>
+          <div className="gk-feature">
+            <div className="gk-setting">
+              <label className="gk-setting-label"><span><b>{t('imagineTool')}</b><span className="gk-tag">{t('experimentalTag')}</span></span><input className="gk-switch" type="checkbox" checked={optBool(options.imagineTool, false) || optBool(options.editTool, false)} disabled={optionsBusy} ref={mediaImageRef} onChange={event => markMedia('images', event.target.checked)} /></label>
+              <p className="gk-hint">{t('imagineToolHint')}</p>
+              <p className="gk-hint">{`${t('imageGenerationSwitch')}: ${t(optBool(options.imagineTool, false) ? 'mediaOn' : 'mediaOff')} · ${t('imageEditingSwitch')}: ${t(optBool(options.editTool, false) ? 'mediaOn' : 'mediaOff')}`}</p>
             </div>
-          )
-        : null}
-
-      {/* Models page */}
-      {page === 'models'
-        ? (
-            <div style={pageStyleInner}>
-              {status.status === 'signed-in'
-                ? (
-                    <div style={cardStyle}>
-                      <div style={rowStyle}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <h3 style={{ ...titleStyle, fontSize: 14 }}>{t('models')}</h3>
-                          <span style={badgeStyle}>{String(modelIds.length)}</span>
-                          {source === null ? null : <span style={{ ...sourceBadgeStyle, color: source.color }}>{source.text}</span>}
-                        </div>
-                        <button type="button" style={buttonStyle} disabled={busy} onClick={() => { void saveModels([]) }}>{t('selectAll')}</button>
-                      </div>
-                      <p style={bodyStyle}>
-                        {status.catalogSource === 'live' ? t('catalogLive')
-                          : status.catalogSource === 'cache' ? t('catalogCache')
-                            : t('catalogFallback')}
-                      </p>
-                      <p style={bodyStyle}>{t('modelHint')}</p>
-                      <ul style={listStyle}>
-                        {modelIds.map(id => {
-                          const checked = selectedIds.includes(id)
-                          return (
-                            <li key={id}>
-                              <label style={modelRowStyle}>
-                                <input
-                                  type="checkbox"
-                                  checked={checked}
-                                  disabled={busy}
-                                  onChange={() => {
-                                    const current = new Set(selectedIds)
-                                    if (checked) current.delete(id)
-                                    else current.add(id)
-                                    void saveModels([...current])
-                                  }}
-                                />
-                                <span style={modelNameStyle}>{displayName(id)}</span>
-                                <span style={modelIdStyle}>{id}</span>
-                              </label>
-                            </li>
-                          )
-                        })}
-                      </ul>
-                      {status.catalogError === undefined ? null : <p style={errorStyle}>{t('catalogError')}</p>}
-                    </div>
-                  )
-                : null}
+            <div className="gk-setting">
+              <label className="gk-setting-label"><span><b>{t('videoTool')}</b><span className="gk-tag">{t('experimentalTag')}</span></span><input className="gk-switch" type="checkbox" checked={optBool(options.videoTool, false)} disabled={optionsBusy} ref={mediaVideoRef} onChange={event => markMedia('video', event.target.checked)} /></label>
+              <p className="gk-hint">{t('videoToolHint')}</p>
             </div>
-          )
-        : null}
-
-      {/* Search page: the search switches, the stateful-conversation switch and
-          the nested-search parameters. */}
-      {page === 'search'
-        ? (
-            <div style={pageStyleInner}>
-              <div style={cardStyle}>
-                <h3 style={{ ...titleStyle, fontSize: 14 }}>{t('navSearch')}</h3>
-                <p style={bodyStyle}>{t('optionsHint')}</p>
-                {/* Badge stays in the switch's row wrapper: a bare flex-column
-                    child would stretch into a full-width strip. */}
-                <div style={optionRowStyle}>
-                  <label style={optionRowStyle}>
-                    <input
-                      type="checkbox"
-                      checked={optBool(options.backendSearch, false)}
-                      disabled={optionsBusy}
-                      onChange={(event) => markOption('backendSearch', event.target.checked)}
-                    />
-                    <span>{t('backendSearch')}</span>
-                  </label>
-                  <span style={experimentalTagStyle}>{t('experimentalTag')}</span>
-                </div>
-                <p style={optionHintStyle}>{t('backendSearchHint')}</p>
-
-                <div style={optionRowStyle}>
-                  <label style={optionRowStyle}>
-                    <input
-                      type="checkbox"
-                      checked={optBool(options.statefulResponses, false)}
-                      disabled={optionsBusy}
-                      onChange={(event) => markOption('statefulResponses', event.target.checked)}
-                    />
-                    <span>{t('statefulResponses')}</span>
-                  </label>
-                  <span style={experimentalTagStyle}>{t('experimentalTag')}</span>
-                </div>
-                <p style={optionHintStyle}>{t('statefulResponsesHint')}</p>
-
-                <label style={optionRowStyle}>
-                  <span>{t('nestedSearchTools')}</span>
-                  <select
-                    value={
-                      optionsDirty.has('nestedSearchTools')
-                        ? options.nestedSearchTools === undefined ? 'auto' : String(options.nestedSearchTools)
-                        : storedOptions.nestedSearchTools === undefined ? 'auto' : String(storedOptions.nestedSearchTools)
-                    }
-                    disabled={optionsBusy}
-                    onChange={(event) => markOption(
-                      'nestedSearchTools',
-                      event.target.value === 'auto' ? undefined : event.target.value === 'true',
-                    )}
-                    style={{ ...optionInputStyle, flex: '0 1 auto' }}
-                  >
-                    <option value="auto">{t('nestedSearchToolsAuto')}</option>
-                    <option value="true">on</option>
-                    <option value="false">off</option>
-                  </select>
-                </label>
-                <p style={optionHintStyle}>{t('nestedSearchToolsHint')}</p>
-
-                <label style={optionRowStyle}>
-                  <span>{t('searchModel')}</span>
-                  <input
-                    type="text"
-                    value={String(options.searchModel ?? '')}
-                    placeholder="grok-build-0.1"
-                    disabled={optionsBusy}
-                    onChange={(event) => markOption('searchModel', event.target.value.trim() === '' ? undefined : event.target.value)}
-                    style={optionInputStyle}
-                  />
-                </label>
-                <p style={optionHintStyle}>{t('searchModelHint')}</p>
-
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14 }}>
-                  <label style={optionRowStyle}>
-                    <span>{t('searchMaxResults')}</span>
-                    <input
-                      type="number"
-                      min={1}
-                      value={String(options.searchMaxResults ?? '')}
-                      placeholder="8"
-                      disabled={optionsBusy}
-                      onChange={(event) => markOptionNumber('searchMaxResults', event.target.value)}
-                      style={optionInputStyle}
-                    />
-                  </label>
-                  <label style={optionRowStyle}>
-                    <span>{t('webSearchTimeoutMs')}</span>
-                    <input
-                      type="number"
-                      min={1000}
-                      value={String(options.webSearchTimeoutMs ?? '')}
-                      placeholder="60000"
-                      disabled={optionsBusy}
-                      onChange={(event) => markOptionNumber('webSearchTimeoutMs', event.target.value)}
-                      style={optionInputStyle}
-                    />
-                  </label>
-                  <label style={optionRowStyle}>
-                    <span>{t('xSearchTimeoutMs')}</span>
-                    <input
-                      type="number"
-                      min={1000}
-                      value={String(options.xSearchTimeoutMs ?? '')}
-                      placeholder="120000"
-                      disabled={optionsBusy}
-                      onChange={(event) => markOptionNumber('xSearchTimeoutMs', event.target.value)}
-                      style={optionInputStyle}
-                    />
-                  </label>
-                </div>
-                <p style={optionHintStyle}>{t('searchMaxResultsHint')} · {t('webSearchTimeoutHint')} · {t('xSearchTimeoutHint')}</p>
-                {optionActions('search')}
-              </div>
+          </div>
+          {pendingMediaGroup !== null ? (
+            <div className="gk-confirm" ref={mediaConfirmRef} tabIndex={-1} role="region" aria-label={t('mediaConfirmTitle')}>
+              <p className="gk-eyebrow gk-error">{t('mediaConfirmTitle')}</p>
+              <h4 className="gk-title gk-error">{pendingMediaGroup === 'images' ? t('imagineTool') : t('videoTool')}</h4>
+              <p className="gk-hint">{t('mediaConfirmPrompt')}</p>
+              <div className="gk-actions"><button type="button" className="gk-button gk-button--danger" disabled={optionsBusy} onClick={() => { restoreMediaFocus(); confirmPendingMedia() }}>{t('mediaConfirmYes')}</button><button type="button" className="gk-button" disabled={optionsBusy} onClick={() => { restoreMediaFocus(); cancelPendingMedia() }}>{t('mediaConfirmNo')}</button></div>
             </div>
-          )
-        : null}
+          ) : null}
+          <p className="gk-hint">{t('mediaRiskHint')}</p>
+          <details className="gk-details"><summary>{t('optionsHowTo')}</summary><div className="gk-stack"><p className="gk-hint">{t('optionsHint')}</p><p className="gk-hint">{`${t('videoModelLabel')}: ${String(options.videoModel ?? '—')}`}</p><p className="gk-hint">{`${t('videoMaxBytesLabel')}: ${String(options.videoMaxBytes ?? '—')}`}</p></div></details>
+          <CapabilitiesView key={`${accountKey}:${String(capabilityGeneration)}`} t={t} signedIn={status.status === 'signed-in'} />
+        </div>
+      ) : null}
 
-      {/* Media page: the image / video switches, the capability record and the
-          local task list. Mounted only while this page is active, so leaving it
-          aborts its in-flight reads and revokes its blob URLs. */}
-      {page === 'media'
-        ? (
-            <div style={pageStyleInner}>
-              <div style={cardStyle}>
-                <h3 style={{ ...titleStyle, fontSize: 14 }}>{t('navMedia')}</h3>
-                <p style={bodyStyle}>{t('optionsHint')}</p>
-                <p style={bodyStyle}>{t('mediaRiskHint')}</p>
-                <div style={optionRowStyle}>
-                  <label style={optionRowStyle}>
-                    <input
-                      type="checkbox"
-                      checked={optBool(options.imagineTool, false) || optBool(options.editTool, false)}
-                      disabled={optionsBusy}
-                      onChange={(event) => markMedia('images', event.target.checked)}
-                    />
-                    <span>{t('imagineTool')}</span>
-                  </label>
-                  <span style={experimentalTagStyle}>{t('experimentalTag')}</span>
-                </div>
-                <p style={optionHintStyle}>{t('imagineToolHint')}</p>
-                <p style={optionHintStyle}>{`${t('imageGenerationSwitch')}: ${t(optBool(options.imagineTool, false) ? 'mediaOn' : 'mediaOff')} · ${t('imageEditingSwitch')}: ${t(optBool(options.editTool, false) ? 'mediaOn' : 'mediaOff')}`}</p>
+      {page === 'network' ? (
+        <div className="gk-page" role="region" aria-label={t('navNetwork')}>
+          <div className="gk-panel gk-stack">
+            <label className="gk-field"><b className="gk-title">{t('proxyTitle')}</b><input className="gk-input" type="text" value={proxyUrl} placeholder={t('proxyPlaceholder')} disabled={proxyBusy} aria-label={t('proxyTitle')} onChange={event => {
+              proxyUrlEditedRef.current = true
+              setProxyUrl(event.target.value)
+              resetProxyFeedback()
+            }} /></label>
+            <p className="gk-hint">{t('proxyHint')}</p>
+          </div>
+          <div className="gk-stack">
+            <label className="gk-setting-label"><b>{t('quotaCompatibilityMode')}</b><input className="gk-switch" type="checkbox" checked={quotaCompatibilityMode} disabled={proxyBusy} onChange={event => {
+              quotaEditedRef.current = true
+              setQuotaCompatibilityMode(event.target.checked)
+              resetProxyFeedback()
+            }} /></label>
+            <p className="gk-hint">{t('quotaCompatibilityModeHint')}</p>
+            <p role="note" className="gk-hint gk-error">{t('quotaCompatibilityWarning')}</p>
+          </div>
+        </div>
+      ) : null}
 
-                <div style={optionRowStyle}>
-                  <label style={optionRowStyle}>
-                    <input
-                      type="checkbox"
-                      checked={optBool(options.videoTool, false)}
-                      disabled={optionsBusy}
-                      onChange={(event) => markMedia('video', event.target.checked)}
-                    />
-                    <span>{t('videoTool')}</span>
-                  </label>
-                  <span style={experimentalTagStyle}>{t('experimentalTag')}</span>
-                </div>
-                <p style={optionHintStyle}>{t('videoToolHint')}</p>
-                {/* Read-only presentation of the remaining video parameters: the first
-                    version edits videoTool only, so these stay informational. */}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14 }}>
-                  <span style={optionRowStyle}>{`${t('videoModelLabel')}: ${String(options.videoModel ?? '—')}`}</span>
-                  <span style={optionRowStyle}>{`${t('videoMaxBytesLabel')}: ${String(options.videoMaxBytes ?? '—')}`}</span>
-                </div>
-                {pendingMediaGroup !== null ? (
-                  <div style={mediaConfirmStyle}>
-                    <p style={{ ...errorStyle, margin: '0 0 4px', fontWeight: 600 }}>{pendingMediaGroup === 'images' ? t('imagineTool') : t('videoTool')}</p>
-                    <p style={{ ...errorStyle, margin: '0 0 6px' }}>{t('mediaConfirmPrompt')}</p>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button type="button" style={primaryButtonStyle} disabled={optionsBusy} onClick={confirmPendingMedia}>{t('mediaConfirmYes')}</button>
-                      <button type="button" style={buttonStyle} disabled={optionsBusy} onClick={cancelPendingMedia}>{t('mediaConfirmNo')}</button>
-                    </div>
-                  </div>
-                ) : null}
-                {optionActions('media')}
-              </div>
-
-              {/* Capability status + local video task list (frozen plugin routes).
-                  The key remounts the panel on every account change, so a previous
-                  account's tasks/diagnostics and blob URLs never survive a switch. */}
-              <CapabilitiesView key={`${accountKey}:${String(capabilityGeneration)}`} t={t} signedIn={status.status === 'signed-in'} />
-            </div>
-          )
-        : null}
-
-      {/* Network page: the xAI-only proxy and the quota compatibility mode. */}
-      {page === 'network'
-        ? (
-            <div style={pageStyleInner}>
-              <div style={cardStyle}>
-                <h3 style={{ ...titleStyle, fontSize: 14 }}>{t('proxyTitle')}</h3>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                  <input
-                    type="text"
-                    value={proxyUrl}
-                    placeholder={t('proxyPlaceholder')}
-                    disabled={proxyBusy}
-                    aria-label={t('proxyTitle')}
-                    onChange={(event) => {
-                      proxyUrlEditedRef.current = true
-                      setProxyUrl(event.target.value)
-                      resetProxyFeedback()
-                    }}
-                    style={{
-                      flex: '1 1 260px',
-                      minHeight: 34,
-                      padding: '6px 12px',
-                      border: '1px solid var(--dsw-alias-border-l2)',
-                      borderRadius: 10,
-                      background: 'var(--dsw-alias-bg-layer-1)',
-                      color: 'var(--dsw-alias-label-primary)',
-                      font: 'inherit',
-                      fontSize: 14,
-                    }}
-                  />
-                  <button type="button" style={buttonStyle} disabled={proxyBusy || !proxyLoaded} onClick={() => { void saveProxy() }}>
-                    {proxyBusy ? t('working') : t('proxySave')}
-                  </button>
-                </div>
-                <p style={bodyStyle}>{t('proxyHint')}</p>
-                {/* The compatibility mode is saved together with the proxy URL,
-                    so it lives in the same card. */}
-                <div style={optionRowStyle}>
-                  <label style={optionRowStyle}>
-                    <input
-                      type="checkbox"
-                      checked={quotaCompatibilityMode}
-                      disabled={proxyBusy}
-                      onChange={(event) => {
-                        quotaEditedRef.current = true
-                        setQuotaCompatibilityMode(event.target.checked)
-                        resetProxyFeedback()
-                      }}
-                    />
-                    <span>{t('quotaCompatibilityMode')}</span>
-                  </label>
-                </div>
-                <p style={optionHintStyle}>{t('quotaCompatibilityModeHint')}</p>
-                <p role="note" style={optionHintStyle}>{t('quotaCompatibilityWarning')}</p>
-                {pageHasDraft('network')
-                  ? (
-                      <p role="status" style={bodyStyle}>
-                        {t('unsavedChangesHint')}
-                        {' '}
-                        {t('networkUnsavedChangesHint')}
-                        {' '}
-                        {quotaCompatibilityMode !== savedQuotaCompatibilityMode ? t('quotaCompatibilityUnsaved') : ''}
-                      </p>
-                    )
-                  : null}
-                {proxyFeedback === 'saved'
-                  ? <p role="status" style={{ ...bodyStyle, color: 'var(--dsw-alias-state-success-primary, #22a06b)' }}>{t('proxySaved')}</p>
-                  : null}
-                {proxyFeedback === 'error' ? <p role="alert" style={errorStyle}>{t('proxyError')}</p> : null}
-                {proxyFeedback === 'loadError'
-                  ? (
-                      <>
-                        <p role="alert" style={errorStyle}>{t('proxyLoadError')}</p>
-                        <button type="button" style={buttonStyle} disabled={proxyLoading} aria-label={t('proxyRetry')} onClick={() => { void loadProxy() }}>
-                          {proxyLoading ? t('working') : t('proxyRetry')}
-                        </button>
-                      </>
-                    )
-                  : null}
-              </div>
-            </div>
-          )
-        : null}
+      {page === 'search' || page === 'media' ? optionActions(page) : null}
+      {page === 'network' ? <footer className="gk-footer">
+        {pageHasDraft('network') ? <p role="status" className="gk-feedback">{t('unsavedChangesHint')} {t('networkUnsavedChangesHint')} {quotaCompatibilityMode !== savedQuotaCompatibilityMode ? t('quotaCompatibilityUnsaved') : ''}</p> : null}
+        <div className="gk-actions"><button type="button" className="gk-button gk-button--primary" disabled={proxyBusy || !proxyLoaded} onClick={() => { void saveProxy() }}>{proxyBusy ? t('working') : t('proxySave')}</button><span className="gk-hint">{t('networkImmediate')}</span></div>
+        {proxyFeedback === 'saved' ? <p role="status" className="gk-feedback gk-success">{t('proxySaved')}</p> : null}
+        {proxyFeedback === 'error' ? <p role="alert" className="gk-feedback gk-error">{t('proxyError')}</p> : null}
+        {proxyFeedback === 'loadError' ? <><p role="alert" className="gk-feedback gk-error">{t('proxyLoadError')}</p><button type="button" className="gk-button" disabled={proxyLoading} aria-label={t('proxyRetry')} onClick={() => { void loadProxy() }}>{proxyLoading ? t('working') : t('proxyRetry')}</button></> : null}
+      </footer> : null}
     </section>
   )
 }

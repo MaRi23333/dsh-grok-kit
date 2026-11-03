@@ -74,6 +74,7 @@ describe('apply() registration', () => {
   function applyCollecting(config: Parameters<typeof apply>[1], tools: Tool[] = []) {
     const names: string[] = []
     const ctx = {
+      provide: vi.fn(),
       emit: vi.fn(),
       get: vi.fn(() => undefined),
       effect: vi.fn((callback: () => void | (() => void)) => {

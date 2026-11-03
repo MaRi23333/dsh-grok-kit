@@ -46,6 +46,7 @@ describe('video capability account isolation in apply()', () => {
       effect: vi.fn(),
     }
     const ctx = {
+      provide: vi.fn(),
       emit: vi.fn(), get: vi.fn(), effect: vi.fn(),
       llm: { listProviders: () => [], registerAdapter: vi.fn() },
       inject: (_deps: unknown, callback: (context: typeof scoped) => void) => callback(scoped),

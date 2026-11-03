@@ -249,7 +249,7 @@ describe('wrapXaiResponsesProvider 401', () => {
     expect(refresh).not.toHaveBeenCalled()
     expect(events[0]?.type).toBe('error')
     if (events[0]?.type === 'error') {
-      expect(events[0].error.errorMessage).toMatch(/turn off backendSearch/i)
+      expect(events[0].error.errorMessage).toMatch(/turn off Grok search adaptation.*backendSearch/i)
     }
   })
 })

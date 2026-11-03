@@ -29,6 +29,7 @@ import {
 } from './search.ts'
 import { createFileResponseChainStore } from './response-chain.ts'
 import { XaiOAuthSession } from './session.ts'
+import { SessionSearchPolicy } from './session-search-policy.ts'
 import { XaiOAuthCredentialStore } from './store.ts'
 import { mergePluginOptions, readStoredOptions } from './options.ts'
 import { resolveMediaOptions, type MediaToolKey } from './media-options.ts'
@@ -396,9 +397,12 @@ export function apply(ctx: Context, config: Config): void {
     maxBytes: validVideoMaxBytes(effectiveConfig.videoMaxBytes) ? effectiveConfig.videoMaxBytes : DEFAULT_VIDEO_MAX_BYTES,
   }))
   const { backendSearch, nestedSearchTools } = resolveNestedSearchTools(effectiveConfig)
+  const searchPolicy = new SessionSearchPolicy()
+  ctx.effect(() => () => searchPolicy.dispose(), 'dsh-grok-kit: session search lifecycle')
   const statefulResponses = resolveStatefulResponses(effectiveConfig)
   session.setWrapOptions({
     backendSearch,
+    resolveBackendSearch: sessionId => searchPolicy.resolve(sessionId),
     retry401: true,
     tokenSource: tokens,
     statefulResponses,
@@ -424,6 +428,8 @@ export function apply(ctx: Context, config: Config): void {
       [XAI_OAUTH_ROUTE],
       createXaiOAuthAdapter(session, () => ctx.get('attachments')),
     )
+    // Advertise only after our adapter successfully owns this route.
+    ctx.provide('grokSearchPolicy', searchPolicy)
   }
   ctx.inject(['webServer'], webCtx => registerXaiOAuthAuthRoutes(
     webCtx,

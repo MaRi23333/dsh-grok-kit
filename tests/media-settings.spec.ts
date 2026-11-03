@@ -86,7 +86,7 @@ async function fixture(initial: Record<string, unknown> = {}) {
   page(en.navMedia)
   const input = (label: string) => {
     page(label === en.backendSearch ? en.navSearch : en.navMedia)
-    const row = elements(render(), element => element.type === 'label' && text(element.props.children) === label)[0]!
+    const row = elements(render(), element => element.type === 'label' && text(element.props.children).startsWith(label))[0]!
     expect(row).toBeDefined()
     return elements(row, element => element.type === 'input')[0]!
   }

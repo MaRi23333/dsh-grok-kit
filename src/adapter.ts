@@ -22,6 +22,7 @@ import {
   XAI_OAUTH_STREAM_IDLE_TIMEOUT_MS,
 } from './ids.ts'
 import type { XaiOAuthSession } from './session.ts'
+import { withSearchRequest } from './session-search-policy.ts'
 
 /** Host defaults for the dsh-llm-pi-ai image budget (see its config schema). */
 const MAX_REQUEST_IMAGE_BYTES = 20 * 1024 * 1024
@@ -66,7 +67,7 @@ export function createXaiOAuthAdapter(
   resolveAttachments: () => AttachmentStore | undefined,
 ): PiAiAdapter {
   let cached: { provider: ReturnType<XaiOAuthSession['provider']>; map: Map<string, ResolvedProfile> } | undefined
-  return new PiAiAdapter({
+  const adapter = new PiAiAdapter({
     profiles: () => {
       const piProvider = session.provider()
       if (cached?.provider === piProvider) return cached.map
@@ -95,4 +96,12 @@ export function createXaiOAuthAdapter(
     },
     resolveAttachments,
   })
+  const stream = adapter.stream.bind(adapter)
+  adapter.stream = request => withSearchRequest(request, () => stream(request))
+  const prepareCall = adapter.prepareCall.bind(adapter)
+  adapter.prepareCall = async (...args) => {
+    const prepared = await prepareCall(...args)
+    return { ...prepared, stream: request => withSearchRequest(request, () => prepared.stream(request)) }
+  }
+  return adapter
 }

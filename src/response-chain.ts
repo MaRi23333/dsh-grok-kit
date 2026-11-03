@@ -22,6 +22,8 @@ export interface ResponseChainRecord {
   updatedAt: number
   /** Only `stop` may continue. `toolUse` means DSH will send tool results next. */
   stopReason: string
+  /** Search mode of this exact response, used to reset continuation on mode changes. */
+  backendSearch?: boolean
 }
 
 export interface ResponseChainStore {
@@ -153,6 +155,7 @@ function parseDocument(text: string): Record<string, ResponseChainRecord> {
       model: raw['model'],
       updatedAt,
       stopReason,
+      ...typeof raw['backendSearch'] === 'boolean' ? { backendSearch: raw['backendSearch'] } : {},
     }
   }
   return out

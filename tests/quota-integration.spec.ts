@@ -80,6 +80,7 @@ function fixture(videoTool = false) {
   vi.stubGlobal('fetch', fetch)
   const scoped = { tools: { register: vi.fn() }, systemPrompt: { section: vi.fn() }, webServer: { register: vi.fn(() => () => undefined) }, effect: vi.fn() }
   const ctx = {
+    provide: vi.fn(),
     emit: vi.fn(), get: vi.fn(), effect: vi.fn(),
     llm: { listProviders: () => [], registerAdapter: vi.fn() },
     inject: (_deps: unknown, callback: (context: typeof scoped) => void) => callback(scoped),

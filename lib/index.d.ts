@@ -74,6 +74,8 @@ interface ResponseChainRecord {
   updatedAt: number;
   /** Only `stop` may continue. `toolUse` means DSH will send tool results next. */
   stopReason: string;
+  /** Search mode of this exact response, used to reset continuation on mode changes. */
+  backendSearch?: boolean;
 }
 interface ResponseChainStore {
   get(sessionId: string): ResponseChainRecord | undefined;
@@ -117,6 +119,10 @@ declare const XAI_SERVER_X_SEARCH_REJECT_NAMES: readonly ["x_keyword_search", "x
 declare const XAI_BUILTIN_SEARCH_FUNCTION_NAMES: readonly ["web_search", "x_search", "grok_web_search"];
 interface XaiResponsesWrapOptions {
   backendSearch: boolean;
+  /** Undefined preserves the provider default; false explicitly overrides a global on. */
+  resolveBackendSearch?: (sessionId: string) => boolean | undefined;
+  /** Internal: this payload belongs to an explicitly bound session. */
+  backendSearchOverride?: boolean;
   /** When true, wrap the event stream and retry once on HTTP 401. */
   retry401: boolean;
   tokenSource?: XaiOAuthTokenSource;

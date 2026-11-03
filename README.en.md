@@ -47,6 +47,8 @@ The same model id does not guarantee the same experience across integrations. [x
 
 To let both search systems coexist, DSH's native `web_search` remains in the host tool list but is removed from an xAI payload with fused search enabled, preventing a server-tool name collision. Other model routes can continue using the host search tool normally.
 
+The current `main` branch lets integrating plugins set search on or off for individual sessions, overriding global `backendSearch` in either direction. Unbound DSH sessions keep the global setting. The integrating plugin must support this interface. This feature is not included in the published 0.2.9 package.
+
 > When main-turn search is on, the plugin strips xAI reject stubs such as `x_keyword_search` so DSH does not start another step and reprint the writeup. If those names still appear, treat them as a diagnostic path, not normal UI.
 
 For domain, account, or date filters, use the standalone `grok_web_search` / `x_search` tools — the default path while `backendSearch` is off; enabling `backendSearch` turns this standalone path into the optional mode.

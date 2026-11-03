@@ -47,10 +47,14 @@ export function parseQuotaSnapshot(value: unknown): QuotaSnapshot {
   return { ...details, state: 'available', usedPercent: used, remainingPercent: remaining }
 }
 
-const card: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 12, padding: '18px 20px', border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 12, background: 'var(--dsw-alias-bg-module-platform)' }
-const body: CSSProperties = { margin: 0, fontSize: 14, lineHeight: '22px', color: 'var(--dsw-alias-label-secondary)' }
-const button: CSSProperties = { minHeight: 34, padding: '6px 14px', border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 18, background: 'var(--dsw-alias-bg-layer-1)', color: 'var(--dsw-alias-label-primary)', font: 'inherit', cursor: 'pointer' }
+const card: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 18, padding: '22px', border: '1px solid var(--gk-line, var(--dsw-alias-border-l2, #e5e5e5))', borderRadius: 20, background: 'var(--gk-surface, var(--dsw-alias-bg-module-platform, #fff))' }
+const body: CSSProperties = { margin: 0, fontSize: 13, lineHeight: '21px', color: 'var(--gk-muted, var(--dsw-alias-label-secondary, #666))' }
+const button: CSSProperties = { minHeight: 34, padding: '6px 14px', border: '1px solid var(--gk-line, var(--dsw-alias-border-l2, #e5e5e5))', borderRadius: 999, background: 'var(--gk-surface, var(--dsw-alias-bg-layer-1, #fff))', color: 'var(--gk-text, var(--dsw-alias-label-primary, #171717))', font: 'inherit', fontSize: 12, cursor: 'pointer' }
 const row: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }
+const numeric: CSSProperties = { fontFamily: 'Bahnschrift, Consolas, monospace', fontVariantNumeric: 'tabular-nums', fontWeight: 500 }
+const screenReader: CSSProperties = { position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clipPath: 'inset(50%)', whiteSpace: 'nowrap', border: 0 }
+const detail: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 5, minWidth: 0 }
+const detailValue: CSSProperties = { margin: 0, color: 'var(--gk-text, var(--dsw-alias-label-primary, #171717))', overflowWrap: 'anywhere', fontSize: 13 }
 
 export function QuotaDetails({ quota, t }: { quota: QuotaSnapshot; t: Translate }) {
   if (quota.state !== 'available' && quota.state !== 'partial') {
@@ -58,30 +62,38 @@ export function QuotaDetails({ quota, t }: { quota: QuotaSnapshot; t: Translate 
       : quota.reason === 'auth' ? 'quotaAuthError'
         : quota.reason === 'restricted' ? 'quotaRestricted'
           : quota.state === 'error' ? 'quotaError' : 'quotaUnavailable'
-    return <p role="status" style={body}>{t(key)}</p>
+    return <p role="status" className="gk-empty" style={{ ...body, padding: '18px 0' }}>{t(key)}</p>
   }
   const percent = (value: number) => `${Number(value.toFixed(1))}%`
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       <div style={row}>
-        <strong style={{ color: 'var(--dsw-alias-label-primary)' }}>{t(quota.period === 'week' ? 'quotaWeek' : quota.period === 'month' ? 'quotaMonth' : 'quotaSubscription')}</strong>
-        {quota.state === 'available' ? <span style={body}>{t('quotaRemaining')}: {percent(quota.remainingPercent)}</span> : null}
+        {quota.state === 'available' ? (
+          <div>
+            <span style={screenReader}>{`${t('quotaRemaining')} : ${percent(quota.remainingPercent)}`}</span>
+            <span aria-hidden="true" style={{ ...body, display: 'block', marginBottom: 5 }}>{t('quotaRemaining')}</span>
+            <span aria-hidden="true" className="gk-numeric" style={{ ...numeric, display: 'inline-flex', alignItems: 'baseline', gap: 5, fontSize: 44, lineHeight: 1.1, letterSpacing: '-1.5px', color: 'var(--gk-text, var(--dsw-alias-label-primary, #171717))' }}>
+              {Number(quota.remainingPercent.toFixed(1))}<small style={{ fontSize: 18, letterSpacing: 0 }}>%</small>
+            </span>
+          </div>
+        ) : <p role="status" style={{ ...body, maxWidth: 520 }}>{t('quotaPartial')}</p>}
+        <span className="gk-status" style={{ ...body, fontSize: 12, padding: '5px 10px', borderRadius: 999, background: 'var(--gk-soft, var(--dsw-alias-bg-layer-1, #f5f5f5))' }}>{t(quota.period === 'week' ? 'quotaWeek' : quota.period === 'month' ? 'quotaMonth' : 'quotaSubscription')}</span>
       </div>
-      {quota.unifiedBilling === true ? <p style={body}>{t('quotaUnified')}</p> : null}
       {quota.state === 'available'
-        ? <>
+        ? <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <p style={{ ...body, ...numeric, fontSize: 12 }}>{t('quotaUsed')}: {percent(quota.usedPercent)}</p>
             <div role="progressbar" aria-label={t('quotaUsed')} aria-valuemin={0} aria-valuemax={100} aria-valuenow={quota.usedPercent}
-              style={{ height: 8, borderRadius: 8, background: 'var(--dsw-alias-border-l2)', overflow: 'hidden' }}>
-              <div style={{ height: '100%', width: `${quota.usedPercent}%`, background: 'var(--dsw-alias-brand-primary, #1677ff)' }} />
+              style={{ height: 5, borderRadius: 8, background: 'var(--gk-line, var(--dsw-alias-border-l2, #e5e5e5))', overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${quota.usedPercent}%`, borderRadius: 8, background: 'var(--gk-strong, var(--dsw-alias-label-primary, #171717))' }} />
             </div>
-            <p style={body}>{t('quotaUsed')}: {percent(quota.usedPercent)}</p>
-          </>
-        : <p role="status" style={body}>{t('quotaPartial')}</p>}
-      <dl style={{ ...body, display: 'grid', gridTemplateColumns: 'minmax(90px, auto) minmax(0, 1fr)', gap: '6px 16px' }}>
-        {quota.plan === undefined ? null : <><dt>{t('quotaPlan')}</dt><dd style={{ margin: 0, overflowWrap: 'anywhere' }}>{quota.plan}</dd></>}
-        {quota.prepaidBalanceUsd === undefined ? null : <><dt>{t('quotaBalance')}</dt><dd style={{ margin: 0 }}>{quota.prepaidBalanceUsd.toFixed(2)} USD</dd></>}
-        {quota.resetAt === undefined ? null : <><dt>{t('quotaResetAt')}</dt><dd style={{ margin: 0 }}>{new Date(quota.resetAt).toLocaleString()}</dd></>}
-        <dt>{t('quotaCheckedAt')}</dt><dd style={{ margin: 0 }}>{new Date(quota.checkedAt).toLocaleString()}</dd>
+          </div>
+        : null}
+      {quota.unifiedBilling === true ? <p className="gk-hint" style={body}>{t('quotaUnified')}</p> : null}
+      <dl style={{ ...body, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 170px), 1fr))', gap: '18px 24px', paddingTop: 16, borderTop: '1px solid var(--gk-line, var(--dsw-alias-border-l2, #e5e5e5))' }}>
+        {quota.plan === undefined ? null : <div style={detail}><dt>{t('quotaPlan')}</dt><dd style={detailValue}>{quota.plan}</dd></div>}
+        {quota.prepaidBalanceUsd === undefined ? null : <div style={detail}><dt>{t('quotaBalance')}</dt><dd className="gk-numeric" style={{ ...detailValue, ...numeric }}>{quota.prepaidBalanceUsd.toFixed(2)} USD</dd></div>}
+        {quota.resetAt === undefined ? null : <div style={detail}><dt>{t('quotaResetAt')}</dt><dd style={{ ...detailValue, ...numeric }}>{new Date(quota.resetAt).toLocaleString()}</dd></div>}
+        <div style={detail}><dt>{t('quotaCheckedAt')}</dt><dd style={{ ...detailValue, ...numeric }}>{new Date(quota.checkedAt).toLocaleString()}</dd></div>
       </dl>
     </div>
   )
@@ -108,10 +120,10 @@ export function QuotaView({ t, signedIn, accountLoading = false }: { t: Translat
     return () => { live = false; abort.abort() }
   }, [signedIn, accountLoading, reload])
   return (
-    <section aria-label={t('quotaTitle')} aria-busy={accountLoading || loading} style={card}>
+    <section className="gk-panel" aria-label={t('quotaTitle')} aria-busy={accountLoading || loading} style={card}>
       <div style={row}>
-        <h3 style={{ margin: 0, fontSize: 14, color: 'var(--dsw-alias-label-primary)' }}>{t('quotaTitle')}</h3>
-        <button type="button" style={button} disabled={!signedIn || accountLoading || loading} onClick={() => setReload(value => value + 1)}>{t('quotaRefresh')}</button>
+        <h3 className="gk-title" style={{ margin: 0, fontSize: 15, fontWeight: 600, color: 'var(--gk-text, var(--dsw-alias-label-primary, #171717))' }}>{t('quotaTitle')}</h3>
+        <button className="gk-button" type="button" style={button} disabled={!signedIn || accountLoading || loading} onClick={() => setReload(value => value + 1)}>{t('quotaRefresh')}</button>
       </div>
       <p style={body}>{t('quotaIntro')}</p>
       {accountLoading || loading ? <p role="status" style={body}>{t(accountLoading ? 'loadingAccount' : 'quotaLoading')}</p> : <QuotaDetails quota={signedIn ? quota ?? { state: 'unavailable' } : { state: 'signed-out' }} t={t} />}

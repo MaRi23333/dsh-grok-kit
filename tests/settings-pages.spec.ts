@@ -435,7 +435,8 @@ describe('five-page settings section', () => {
 
     const nav = find(sticky!, element => element.type === 'nav')[0]
     const buttons = find(nav!, element => element.type === 'button')
-    expect(buttons.map(one => one.props.children)).toEqual([en.navAccount, en.navModels, en.navSearch, en.navMedia, en.navNetwork])
+    expect(buttons.map(one => one.props['aria-label'])).toEqual([en.navAccount, en.navModels, en.navSearch, en.navMedia, en.navNetwork])
+    expect(buttons.map(one => texts(one).join(''))).toEqual([en.navAccount, en.navModels, en.navSearchShort, en.navMediaShort, en.navNetwork])
     expect(buttons.map(one => one.props['aria-current'])).toEqual(['page', undefined, undefined, undefined, undefined])
   })
 
@@ -458,6 +459,20 @@ describe('five-page settings section', () => {
     clickPage(en.navAccount)
     expect(panels(now(), CapabilitiesView)).toHaveLength(0)
     expect(texts(harness.tree()).join(' ')).toContain(en.unofficialNotice)
+  })
+
+  it('does not infer automatic search availability from the main search switch when profile configuration can override it', async () => {
+    stubFetch({ '/auth/options': {
+      effective: { backendSearch: true, nestedSearchTools: true },
+      stored: {},
+      sources: { backendSearch: 'config', nestedSearchTools: 'config' },
+    } })
+    mount()
+    clickPage(en.navSearch)
+    await settled()
+    expect(field(now(), en.nestedSearchTools).props.value).toBe('auto')
+    expect(texts(now()).join(' ')).toContain(en.nestedDraftAuto)
+    expect(texts(now()).join(' ')).not.toContain(en.nestedDraftOff)
   })
 
   it('issues no request of its own while switching pages', async () => {
@@ -1018,11 +1033,11 @@ describe('five-page settings section', () => {
         return (Array.isArray(children) ? children : [children]).includes(badge)
       })
       expect(parents).toHaveLength(1)
-      expect(parents[0]?.type).toBe('div')
-      const style = parents[0]?.props.style as Record<string, unknown>
-      expect(style.display).toBe('flex')
-      expect(style.flexDirection).not.toBe('column')
-      expect(find(parents[0], node => node.type === 'input' && node.props.type === 'checkbox')).toHaveLength(1)
+      expect(parents[0]?.type).toBe('span')
+      expect(badge.props.className).toBe('gk-tag')
+      const labels = find(tree, node => node.type === 'label' && find(node, child => child === badge).length === 1)
+      expect(labels).toHaveLength(1)
+      expect(find(labels[0], node => node.type === 'input' && node.props.type === 'checkbox')).toHaveLength(1)
     }
   })
 

@@ -138,26 +138,28 @@ function errorDetail(error: unknown): string {
 }
 
 // ---------------------------------------------------------------------------
-// Styles (host `--dsw-alias-*` tokens)
+// Settings theme tokens with standalone host fallbacks.
 // ---------------------------------------------------------------------------
 
-const cardStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 14, padding: '18px 20px', border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 12, background: 'var(--dsw-alias-bg-module-platform)' }
-const titleStyle: CSSProperties = { margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--dsw-alias-label-primary)' }
-const bodyStyle: CSSProperties = { margin: 0, fontSize: 14, lineHeight: '22px', color: 'var(--dsw-alias-label-secondary)' }
-const hintStyle: CSSProperties = { ...bodyStyle, fontSize: 12, margin: 0, color: 'var(--dsw-alias-label-tertiary, #81858c)' }
-const errorStyle: CSSProperties = { ...bodyStyle, color: 'var(--dsw-alias-state-error-primary)' }
+const cardStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 18, padding: 22, border: '1px solid var(--gk-line, var(--dsw-alias-border-l2, #e5e5e5))', borderRadius: 20, background: 'var(--gk-surface, var(--dsw-alias-bg-module-platform, #fff))' }
+const titleStyle: CSSProperties = { margin: 0, fontSize: 15, fontWeight: 600, color: 'var(--gk-text, var(--dsw-alias-label-primary, #171717))' }
+const bodyStyle: CSSProperties = { margin: 0, fontSize: 13, lineHeight: '21px', color: 'var(--gk-muted, var(--dsw-alias-label-secondary, #666))' }
+const hintStyle: CSSProperties = { ...bodyStyle, fontSize: 12 }
+const errorStyle: CSSProperties = { ...bodyStyle, color: 'var(--gk-danger, var(--dsw-alias-state-error-primary, #c13b36))', overflowWrap: 'anywhere' }
 const rowStyle: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }
-const listStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 8, margin: 0, padding: 0, listStyle: 'none' }
-const buttonStyle: CSSProperties = { boxSizing: 'border-box', minHeight: 32, padding: '5px 14px', border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 18, background: 'var(--dsw-alias-bg-layer-1)', color: 'var(--dsw-alias-label-primary)', font: 'inherit', fontSize: 13, cursor: 'pointer' }
-const badgeStyle: CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 9px', borderRadius: 999, border: '1px solid var(--dsw-alias-border-l2)', fontSize: 12, fontWeight: 500, color: 'var(--dsw-alias-label-secondary)', whiteSpace: 'nowrap' }
-const itemStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 6, padding: '10px 12px', border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 10, background: 'var(--dsw-alias-bg-layer-1)' }
-const labelStyle: CSSProperties = { fontSize: 12, color: 'var(--dsw-alias-label-tertiary, #81858c)' }
+const listStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 12, margin: 0, padding: 0, listStyle: 'none' }
+const buttonStyle: CSSProperties = { boxSizing: 'border-box', minHeight: 34, padding: '6px 14px', border: '1px solid var(--gk-line, var(--dsw-alias-border-l2, #e5e5e5))', borderRadius: 999, background: 'var(--gk-surface, var(--dsw-alias-bg-layer-1, #fff))', color: 'var(--gk-text, var(--dsw-alias-label-primary, #171717))', font: 'inherit', fontSize: 12, cursor: 'pointer' }
+const badgeStyle: CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 500, color: 'var(--gk-muted, var(--dsw-alias-label-secondary, #666))', whiteSpace: 'nowrap' }
+const itemStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 8, padding: '16px', minWidth: 0 }
+const labelStyle: CSSProperties = { fontSize: 11, lineHeight: '18px', color: 'var(--gk-muted, var(--dsw-alias-label-tertiary, #81858c))', overflowWrap: 'anywhere' }
+const dotStyle: CSSProperties = { width: 6, height: 6, borderRadius: '50%', background: 'currentColor', flexShrink: 0 }
+const emptyStyle: CSSProperties = { ...bodyStyle, padding: '20px 16px', borderRadius: 14, background: 'var(--gk-soft, var(--dsw-alias-bg-layer-1, #f5f5f5))' }
 
 const STATE_TONE: Record<CapabilityFeatureState, string> = {
-  unverified: 'var(--dsw-alias-label-tertiary, #81858c)',
-  available: 'var(--dsw-alias-state-success-primary, #22a06b)',
-  restricted: 'var(--dsw-alias-state-warning-primary, #b54708)',
-  'temporary-error': 'var(--dsw-alias-state-error-primary, #d92d20)',
+  unverified: 'var(--gk-muted, var(--dsw-alias-label-tertiary, #81858c))',
+  available: 'var(--gk-success, var(--dsw-alias-state-success-primary, #21865a))',
+  restricted: 'var(--gk-danger, var(--dsw-alias-state-error-primary, #c13b36))',
+  'temporary-error': 'var(--gk-danger, var(--dsw-alias-state-error-primary, #c13b36))',
 }
 
 // ---------------------------------------------------------------------------
@@ -202,24 +204,24 @@ export function VideoTasksView({ t, videoEnabled }: { t: SettingsTranslate; vide
   }, [reloadKey, videoEnabled])
 
   return (
-    <section aria-label={t('videoTasksTitle')} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <section aria-label={t('videoTasksTitle')} aria-busy={videoEnabled && status.kind === 'loading'} style={{ display: 'flex', flexDirection: 'column', gap: 12, borderTop: '1px solid var(--gk-line, var(--dsw-alias-border-l2, #e5e5e5))', paddingTop: 20, minWidth: 0 }}>
       <div style={rowStyle}>
-        <h4 style={{ ...titleStyle, fontSize: 13 }}>{t('videoTasksTitle')}</h4>
-        <button type="button" style={buttonStyle} disabled={!videoEnabled || status.kind === 'loading'} onClick={() => { if (videoEnabled) setReloadKey(key => key + 1) }}>
+        <h4 className="gk-title" style={{ ...titleStyle, fontSize: 14 }}>{t('videoTasksTitle')}</h4>
+        <button className="gk-button" type="button" style={buttonStyle} disabled={!videoEnabled || status.kind === 'loading'} onClick={() => { if (videoEnabled) setReloadKey(key => key + 1) }}>
           {t('videoTasksRefresh')}
         </button>
       </div>
       {videoEnabled ? <p style={hintStyle}>{t('videoTasksIntro')}</p> : null}
-      {videoEnabled ? null : <p style={hintStyle}>{t('videoTasksDisabled')}</p>}
+      {videoEnabled ? null : <p className="gk-empty" style={emptyStyle}>{t('videoTasksDisabled')}</p>}
       {videoEnabled ? <p style={hintStyle}>{t('resumeHint')}</p> : null}
-      {videoEnabled && status.kind === 'loading' ? <p style={bodyStyle}>{t('videoTasksLoading')}</p> : null}
+      {videoEnabled && status.kind === 'loading' ? <p role="status" style={emptyStyle}>{t('videoTasksLoading')}</p> : null}
       {videoEnabled && status.kind === 'error' ? (
         <>
           <p style={errorStyle}>{t('videoTasksError')}</p>
           {status.detail === '' ? null : <p style={errorStyle}>{status.detail}</p>}
         </>
       ) : null}
-      {videoEnabled && status.kind === 'ready' && status.tasks.length === 0 ? <p style={bodyStyle}>{t('videoTasksEmpty')}</p> : null}
+      {videoEnabled && status.kind === 'ready' && status.tasks.length === 0 ? <p className="gk-empty" style={emptyStyle}>{t('videoTasksEmpty')}</p> : null}
       {videoEnabled && status.kind === 'ready' && status.tasks.length > 0 ? (
         <ul style={listStyle}>
           {status.tasks.map(task => (
@@ -295,16 +297,16 @@ export function CapabilitiesView({ t, signedIn }: { t: SettingsTranslate; signed
   }, [reloadKey])
 
   return (
-    <section aria-labelledby="grok-capabilities-title" style={cardStyle}>
+    <section className="gk-panel" aria-labelledby="grok-capabilities-title" aria-busy={status.kind === 'loading'} style={cardStyle}>
       <div style={rowStyle}>
-        <h3 id="grok-capabilities-title" style={titleStyle}>{t('capabilitiesTitle')}</h3>
-        <button type="button" style={buttonStyle} disabled={status.kind === 'loading'} onClick={() => { setReloadKey(key => key + 1) }}>
+        <h3 className="gk-title" id="grok-capabilities-title" style={titleStyle}>{t('capabilitiesTitle')}</h3>
+        <button className="gk-button" type="button" style={buttonStyle} disabled={status.kind === 'loading'} onClick={() => { setReloadKey(key => key + 1) }}>
           {t('capabilitiesRefresh')}
         </button>
       </div>
       <p style={bodyStyle}>{t('capabilitiesIntro')}</p>
 
-      {status.kind === 'loading' ? <p style={bodyStyle}>{t('capabilitiesLoading')}</p> : null}
+      {status.kind === 'loading' ? <p role="status" style={emptyStyle}>{t('capabilitiesLoading')}</p> : null}
       {status.kind === 'error' ? (
         <>
           <p style={errorStyle}>{t('capabilitiesError')}</p>
@@ -314,25 +316,26 @@ export function CapabilitiesView({ t, signedIn }: { t: SettingsTranslate; signed
 
       {status.kind === 'ready' ? (
         <>
-          <div style={rowStyle}>
-            <span style={{ ...badgeStyle, color: status.data.videoEnabled ? 'var(--dsw-alias-state-success-primary, #22a06b)' : 'var(--dsw-alias-label-tertiary, #81858c)' }}>
+          <div style={{ ...rowStyle, padding: '12px 16px', borderRadius: 14, background: 'var(--gk-soft, var(--dsw-alias-bg-layer-1, #f5f5f5))' }}>
+            <span className="gk-status" style={{ ...badgeStyle, color: status.data.videoEnabled ? STATE_TONE.available : STATE_TONE.unverified }}>
+              <span aria-hidden="true" style={dotStyle} />
               {status.data.videoEnabled ? t('videoOn') : t('videoOff')}
             </span>
             <span style={hintStyle}>{t('videoRestartHint')}</span>
           </div>
 
-          <ul style={listStyle}>
-            {status.data.features.map(feature => (
-              <li key={feature.id} style={itemStyle}>
+          <ul style={{ ...listStyle, gap: 0, border: '1px solid var(--gk-line, var(--dsw-alias-border-l2, #e5e5e5))', borderRadius: 14, overflow: 'hidden' }}>
+            {status.data.features.map((feature, index) => (
+              <li key={feature.id} style={{ ...itemStyle, ...(index > 0 ? { borderTop: '1px solid var(--gk-line, var(--dsw-alias-border-l2, #e5e5e5))' } : {}) }}>
                 <div style={rowStyle}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--dsw-alias-label-primary)' }}>{featureLabel(t, feature.id)}</span>
-                  <span style={{ ...badgeStyle, color: STATE_TONE[feature.state] }}>{featureStateLabel(t, feature.state)}</span>
+                  <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--gk-text, var(--dsw-alias-label-primary, #171717))' }}>{featureLabel(t, feature.id)}</span>
+                  <span className="gk-status" style={{ ...badgeStyle, color: STATE_TONE[feature.state] }}><span aria-hidden="true" style={dotStyle} />{featureStateLabel(t, feature.state)}</span>
                 </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+                {feature.checkedAt === undefined && feature.model === undefined && feature.httpStatus === undefined ? null : <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 16px', fontFamily: 'Bahnschrift, Consolas, monospace', fontVariantNumeric: 'tabular-nums' }}>
                   {feature.checkedAt === undefined ? null : <span style={labelStyle}>{`${t('capabilityCheckedAt')}: ${feature.checkedAt}`}</span>}
                   {feature.model === undefined ? null : <span style={labelStyle}>{`${t('capabilityModel')}: ${feature.model}`}</span>}
                   {feature.httpStatus === undefined ? null : <span style={labelStyle}>{`${t('capabilityHttp')}: ${String(feature.httpStatus)}`}</span>}
-                </div>
+                </div>}
                 {feature.message === undefined ? null : <p style={{ ...bodyStyle, fontSize: 13, margin: 0, overflowWrap: 'anywhere' }}>{feature.message}</p>}
               </li>
             ))}

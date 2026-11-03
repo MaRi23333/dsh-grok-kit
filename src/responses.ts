@@ -51,6 +51,10 @@ const ENCRYPTED_REASONING = 'reasoning.encrypted_content'
 
 export interface XaiResponsesWrapOptions {
   backendSearch: boolean
+  /** Undefined preserves the provider default; false explicitly overrides a global on. */
+  resolveBackendSearch?: (sessionId: string) => boolean | undefined
+  /** Internal: this payload belongs to an explicitly bound session. */
+  backendSearchOverride?: boolean
   /** When true, wrap the event stream and retry once on HTTP 401. */
   retry401: boolean
   tokenSource?: XaiOAuthTokenSource
@@ -187,6 +191,10 @@ export function applyXaiResponsesPayload(
       }
     }
     params['tools'] = stripped
+  } else if (options.backendSearchOverride && Array.isArray(params['tools'])) {
+    params['tools'] = params['tools'].filter(tool =>
+      !isRecord(tool) || tool['type'] !== 'web_search' && tool['type'] !== 'x_search',
+    )
   }
 
   return params
@@ -204,7 +212,7 @@ function rewriteBackendSearchError(event: AssistantMessageEvent, backendSearch: 
       error: {
         ...event.error,
         errorMessage:
-          'xAI rejected this request (HTTP 403). Server-side web/X search looks unavailable on this account — turn off backendSearch in the plugin settings, save, and restart the DSH host, then retry.',
+          'xAI rejected this request (HTTP 403). Server-side web/X search looks unavailable on this account. Turn off Grok search adaptation for this Bot instance, or backendSearch for other DSH chats, then retry.',
       },
     }
   }
@@ -214,7 +222,7 @@ function rewriteBackendSearchError(event: AssistantMessageEvent, backendSearch: 
       error: {
         ...event.error,
         errorMessage:
-          'xAI rejected this request (HTTP 400): the payload mixed server-side search tools. Turn off backendSearch in the plugin settings, save, and restart the DSH host, then retry.'
+          'xAI rejected this request (HTTP 400): the payload mixed server-side search tools. Turn off Grok search adaptation for this Bot instance, or backendSearch for other DSH chats, then retry.'
           + (message.length > 0 ? ` Original: ${message}` : ''),
       },
     }
@@ -240,11 +248,14 @@ function withPayload(
       const base = upstream ?? payload
       const applied = applyXaiResponsesPayload(base, model, { ...options, skipDefaultHigh })
       if (continuation === undefined || !isRecord(applied) || model.api !== 'openai-responses') return applied
+      const previous = continuation.store.get(continuation.sessionId)
+      const changedSearchMode = previous !== undefined && (previous.backendSearch === undefined
+        ? options.backendSearchOverride === true : previous.backendSearch !== options.backendSearch)
       const next = applyStatefulContinuation(applied, {
         sessionId: continuation.sessionId,
         modelId: model.id,
         store: continuation.store,
-        forceFullReplay: continuation.forceFullReplay(),
+        forceFullReplay: continuation.forceFullReplay() || changedSearchMode,
       })
       continuation.pending.fingerprints = next.fingerprints
       continuation.pending.usedPrevious = next.usedPrevious
@@ -407,6 +418,9 @@ export function wrapXaiResponsesProvider(
     const sessionId = typeof streamOptions?.sessionId === 'string' && streamOptions.sessionId.length > 0
       ? streamOptions.sessionId
       : undefined
+    // Freeze once: retries and result sanitization must use the mode of this request.
+    const override = sessionId === undefined ? undefined : options.resolveBackendSearch?.(sessionId)
+    const requestOptions = { ...options, backendSearch: override ?? options.backendSearch, backendSearchOverride: override !== undefined }
     const stateful = options.statefulResponses === true && options.chainStore !== undefined && sessionId !== undefined
     let forceFullReplay = false
     const pending: { fingerprints?: string[]; usedPrevious?: boolean } = {}
@@ -426,7 +440,7 @@ export function wrapXaiResponsesProvider(
     // proxy hook is the same one the SDK would have used.
     if (model.baseUrl.length > 0) assertBearerDestination(model.baseUrl)
     const injected = {
-      ...withPayload(streamOptions, options, continuation),
+      ...withPayload(streamOptions, requestOptions, continuation),
       fetch: guardBearerFetch(streamOptions?.fetch ?? ((input, init) => globalThis.fetch(input, init))),
     }
     const begin = (apiKey?: string) => fn.call(
@@ -449,6 +463,7 @@ export function wrapXaiResponsesProvider(
             model: model.id,
             updatedAt: Date.now(),
             stopReason,
+            backendSearch: requestOptions.backendSearch,
           })
         },
         retryPrevious: () => {
@@ -461,7 +476,7 @@ export function wrapXaiResponsesProvider(
       }
       : undefined
     const decorate = (inner: ReturnType<Provider['streamSimple']>) =>
-      forwardStream(inner, options.backendSearch, model, streamOptions?.signal, extras)
+      forwardStream(inner, requestOptions.backendSearch, model, streamOptions?.signal, extras)
     if (!options.retry401 || options.tokenSource === undefined) {
       return decorate(begin(currentKey))
     }
@@ -477,7 +492,7 @@ export function wrapXaiResponsesProvider(
       tokenSource: options.tokenSource,
       rejected,
       signal: streamOptions?.signal,
-      backendSearch: options.backendSearch,
+      backendSearch: requestOptions.backendSearch,
       model,
     }))
   }
