@@ -58,8 +58,9 @@ release, and inspect the saved binding only when setup changes or fails.
 
 ## 1. Prepare and verify the version
 
-Update `package.json`, `package-lock.json`, version-bearing source constants (including the assertions in `scripts/pack-install-smoke.mjs`), and
-committed build artifacts together. Then run:
+Update `package.json`, `package-lock.json`, version-bearing source constants, and
+committed build artifacts together. `scripts/pack-install-smoke.mjs` reads the
+expected plugin version from the root `package.json`. Then run:
 
 ```sh
 npm ci --ignore-scripts

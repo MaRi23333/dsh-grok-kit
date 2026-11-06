@@ -35,7 +35,7 @@ Supporting behavior includes an xAI-only proxy, forced refresh and one retry on 
 
 Quota comes from the official billing/settings responses: percentage, period, plan and prepaid balance. A missing REST percentage triggers one gRPC verification. Only a complete, successful response with a valid current period can yield the proto3 implicit zero: 0% used / 100% remaining. Otherwise subscription details remain visible with unknown usage, never unlimited usage. Verification has its own short timeout, so its failure or timeout preserves already-read partial details; the whole-get deadline, cancellation and account checks still apply. Results are cached per account for at most 60 seconds; verified usage does not remain cached beyond its valid period, and the period is rechecked before returning it. An uncached read missing a percentage adds at most one gRPC request, and REST 429 never triggers it. Current-period checks rely on the local clock; clock skew can affect freshness and implicit-zero decisions. Unified billing is identified by the reported flag, not guessed from the plan name. Only the signed-in identity is shown; workspaces and seats are not aggregated. The plugin does not provide Cursor sign-in or integrations for other models or external agents.
 
-**0.2.10** refreshes the five-tab settings UI, adds an interface for integrating plugins to control fused search per session, and updates the Zod lock entry for an upstream security fix. Account handling and media risk confirmations are unchanged. Restart DSH after updating.
+**0.2.11** adapts the sidebar icon to the native DSH 0.2.2 slot, retaining the five-tab settings UI and per-session fused-search interface. Account handling and media risk confirmations are unchanged. Reload the plugin or restart DSH after updating.
 
 ## Search in the main model turn
 
@@ -109,7 +109,7 @@ Desktop and Web have separate plugin installations and activation states. Choose
 ### Desktop app
 
 1. Open the desktop app and select **Plugins → Add plugin** in the sidebar.
-2. Enter `dsh-grok-kit@latest` and install it, or use `dsh-grok-kit@0.2.10` to pin this release.
+2. Enter `dsh-grok-kit@latest` and install it, or use `dsh-grok-kit@0.2.11` to pin this release.
 3. Click **Enable now** when installation finishes. If prompted to restart, fully quit through the application menu or tray **Quit** action, then reopen the app. Closing the window may only hide it.
 4. Check that **Settings → xAI Grok** is available, then sign in with an eligible account.
 
@@ -126,10 +126,10 @@ dsh web
 
 If the Web process is already running, stop it first, then run `dsh web` after installation and refresh the page. The commands below are for Web.
 
-You can also pin version 0.2.10:
+You can also pin version 0.2.11:
 
 ```sh
-dsh plugin --profile web add dsh-grok-kit@0.2.10
+dsh plugin --profile web add dsh-grok-kit@0.2.11
 dsh web
 ```
 

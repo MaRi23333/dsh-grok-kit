@@ -1,5 +1,12 @@
 # 更新记录 / Changelog
 
+## 0.2.11（2026-11-06）
+
+- 使用 DSH 原生设置图标插槽，恢复新版设置侧栏的终端图标，尺寸随宿主调整。
+- Use the native DSH settings icon slot to restore the terminal icon in the updated settings sidebar and follow the host's icon size.
+- 同步请求头中的插件版本号；安装检查从包清单读取预期版本，避免升级后误报版本不符。
+- Synchronize the request User-Agent version and read the expected install-smoke version from the package manifest.
+
 ## 0.2.10（2026-11-03）
 
 - 更新账户、模型、搜索、媒体和网络设置界面，改善宽窄窗口、明暗主题及键盘操作。

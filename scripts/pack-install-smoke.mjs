@@ -26,6 +26,7 @@ if (!Object.hasOwn(HOST_SETS, requestedDsh)) {
 const { dsh: EXPECTED_DSH, piAi: EXPECTED_PI_AI } = HOST_SETS[requestedDsh]
 const PROFILE = 'web'
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+const EXPECTED_PLUGIN_VERSION = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version
 const shell = process.platform === 'win32'
 
 function run(file, args, opts = {}) {
@@ -154,13 +155,13 @@ try {
 
   const pluginDir = join(dshHome, 'profiles', PROFILE, 'node_modules', 'dsh-grok-kit')
   const manifest = JSON.parse(readFileSync(join(pluginDir, 'package.json'), 'utf8'))
-  if (manifest.version !== '0.2.10') {
-    throw new Error(`installed plugin version is ${manifest.version}, expected 0.2.10`)
+  if (manifest.version !== EXPECTED_PLUGIN_VERSION) {
+    throw new Error(`installed plugin version is ${manifest.version}, expected ${EXPECTED_PLUGIN_VERSION}`)
   }
   if (!existsSync(join(pluginDir, 'lib', 'index.js'))) {
     throw new Error('installed plugin is missing lib/index.js')
   }
-  console.log(`pack-install-smoke: OK — DSH ${EXPECTED_DSH} / pi-ai ${EXPECTED_PI_AI} / booted web profile loaded dsh-grok-kit@0.2.10`)
+  console.log(`pack-install-smoke: OK — DSH ${EXPECTED_DSH} / pi-ai ${EXPECTED_PI_AI} / booted web profile loaded dsh-grok-kit@${EXPECTED_PLUGIN_VERSION}`)
 } finally {
   if (tarball !== undefined) rmSync(tarball, { force: true })
   rmSync(work, { recursive: true, force: true })

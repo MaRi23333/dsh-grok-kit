@@ -16,7 +16,7 @@ import { XaiSettings } from './XaiSettings.tsx'
 import type { XaiOAuthSettingsInjected } from './XaiSettings.tsx'
 import { en, zh } from './locales.ts'
 import type { XaiOAuthSettingsKey } from './locales.ts'
-import { decorateSettingsNavIcon } from './nav-icon.ts'
+import { registerSettingsNavIcon } from './nav-icon.ts'
 import { applyImagineViews } from './imagine-view.tsx'
 import { applyVideoViews } from './video-view.tsx'
 
@@ -80,7 +80,7 @@ export function apply(ctx: Context): void {
     }, XaiSettings)
   })
 
-  decorateSettingsNavIcon(ctx)
+  registerSettingsNavIcon(ctx)
 
   // Session image views for grok_imagine / grok_imagine_edit, merged from
   // the former dsh-grok-imagine-ui companion plugin.
