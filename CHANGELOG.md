@@ -1,5 +1,12 @@
 # 更新记录 / Changelog
 
+## 0.2.12（2026-11-12）
+
+- 更新 Vitest 与 fast-uri，并为三个开发工具依赖定向覆盖 minimatch 11.0.5，修复开发依赖安全问题。运行依赖与功能行为不变。
+- 同步插件版本标识和中英文固定安装示例。
+- Update Vitest and fast-uri, and apply targeted minimatch 11.0.5 overrides for three development tools. Runtime dependencies and behavior are unchanged.
+- Synchronize plugin version identifiers and pinned installation examples in both languages.
+
 ## 0.2.11（2026-11-06）
 
 - 使用 DSH 原生设置图标插槽，恢复新版设置侧栏的终端图标，尺寸随宿主调整。

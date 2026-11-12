@@ -16,7 +16,7 @@ import { assertMediaEnabled } from './media-options.ts'
 export const XAI_IMAGES_URL = 'https://api.x.ai/v1/images/generations'
 export const DEFAULT_IMAGINE_MODEL = 'grok-imagine-image-2.0'
 const FALLBACK_IMAGINE_MODEL = 'grok-imagine-image'
-const USER_AGENT = 'dsh-grok-kit/0.2.11'
+const USER_AGENT = 'dsh-grok-kit/0.2.12'
 /** v1 renders exactly one image per call (the API bills per n). */
 const MAX_N = 1
 

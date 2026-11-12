@@ -27,6 +27,20 @@ Evidence boundaries for releases:
   or contributor with an eligible account (see
   `.github/ISSUE_TEMPLATE/live-testing.md`) before a formal release.
 
+## Development dependency overrides
+
+The `minimatch` overrides are limited to `eslint`, `@eslint/config-array`, and
+`@typescript-eslint/typescript-estree`. These tools still request 10.x, which is
+affected by [GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249).
+The overrides select 11.0.5 for the development toolchain; they do not change the
+plugin's runtime dependencies.
+
+When the upstream tools accept a patched version, remove the corresponding
+override and refresh the lockfile. Verify a frozen install, `npm ls --all`, a
+clean audit, and unchanged lint file coverage and diagnostics before removing
+it. Keep unrelated runtime and build-tool versions locked during security-only
+dependency updates.
+
 ## One-time Trusted Publisher setup
 
 After `publish.yml` exists on the public repository's default branch and the
