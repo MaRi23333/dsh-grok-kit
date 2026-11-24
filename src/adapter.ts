@@ -26,16 +26,18 @@ import { withSearchRequest } from './session-search-policy.ts'
 
 /** Host defaults for the dsh-llm-pi-ai image budget (see its config schema). */
 const MAX_REQUEST_IMAGE_BYTES = 20 * 1024 * 1024
+const MAX_REQUEST_IMAGES = 50
+const IMAGE_OFFLOAD_COUNT_QUANTUM = 10
+const REQUEST_IMAGE_BUDGET_COUNT = 20
 const REQUEST_IMAGE_PIXEL_BUDGET = 2048 * 2048
 const REQUEST_IMAGE_MAX_BYTES = 1024 * 1024
 
-/**
- * Profile shape carrying the per-model failure map that dsh-llm-pi-ai
- * 0.1.5-rc.2 bare-reads in `modelOf` (`profile.modelErrors.get(model)`,
- * issue #1). The field does not exist on 0.1.2-rc.1 types, where an extra
- * property is ignored; keep it typed here until the test matrix moves.
- */
-type ResolvedProfile = ResolvedPiAiProviderProfile & { modelErrors?: ReadonlyMap<string, string> }
+/** Image defaults read by newer hosts when bypassing their profile resolver. */
+type ResolvedProfile = ResolvedPiAiProviderProfile & {
+  maxRequestImages: number
+  imageOffloadCountQuantum: number
+  requestImageBudgetCount: number
+}
 type HostPiProvider = ResolvedPiAiProviderProfile['piProvider']
 
 /** Minimal pi-ai AuthContext over the host process environment and filesystem. */
@@ -83,6 +85,9 @@ export function createXaiOAuthAdapter(
         piProvider: piProvider as unknown as HostPiProvider,
         reasoning: 'high',
         maxRequestImageBytes: MAX_REQUEST_IMAGE_BYTES,
+        maxRequestImages: MAX_REQUEST_IMAGES,
+        imageOffloadCountQuantum: IMAGE_OFFLOAD_COUNT_QUANTUM,
+        requestImageBudgetCount: REQUEST_IMAGE_BUDGET_COUNT,
         requestImagePixelBudget: REQUEST_IMAGE_PIXEL_BUDGET,
         requestImageMaxBytes: REQUEST_IMAGE_MAX_BYTES,
       }]])

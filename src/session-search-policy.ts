@@ -4,6 +4,11 @@ import type { GenerateOptions } from '@deepseek-ai/dsh-llm'
 interface SearchRequest { sessionId?: string; purpose?: GenerateOptions['purpose'] }
 const requests = new AsyncLocalStorage<SearchRequest>()
 
+export function isAuxiliaryRequest(sessionId: string): boolean {
+  const request = requests.getStore()
+  return request?.sessionId === sessionId && request.purpose !== undefined
+}
+
 /** Keep purpose across the lazy adapter iterator, without changing host request options. */
 export async function* withSearchRequest<T>(
   request: SearchRequest,
@@ -49,8 +54,7 @@ export class SessionSearchPolicy {
     if (this.disposed) return false
     const entry = this.sessions.get(sessionId)
     if (entry === undefined) return undefined
-    const request = requests.getStore()
-    if (request?.sessionId === sessionId && request.purpose !== undefined) return false
+    if (isAuxiliaryRequest(sessionId)) return false
     const enabled = entry.enabled()
     if (typeof enabled !== 'boolean') throw new Error('Grok search session policy must return a boolean')
     return enabled

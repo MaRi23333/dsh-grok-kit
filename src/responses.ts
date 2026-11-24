@@ -22,6 +22,7 @@ import {
   applyStatefulContinuation,
   type ResponseChainStore,
 } from './response-chain.ts'
+import { isAuxiliaryRequest } from './session-search-policy.ts'
 
 export const XAI_SERVER_X_SEARCH_REJECT_NAMES = [
   'x_keyword_search',
@@ -421,7 +422,9 @@ export function wrapXaiResponsesProvider(
     // Freeze once: retries and result sanitization must use the mode of this request.
     const override = sessionId === undefined ? undefined : options.resolveBackendSearch?.(sessionId)
     const requestOptions = { ...options, backendSearch: override ?? options.backendSearch, backendSearchOverride: override !== undefined }
+    // Title and compaction requests share the session ID but have their own context.
     const stateful = options.statefulResponses === true && options.chainStore !== undefined && sessionId !== undefined
+      && !isAuxiliaryRequest(sessionId)
     let forceFullReplay = false
     const pending: { fingerprints?: string[]; usedPrevious?: boolean } = {}
     const continuation = stateful

@@ -88,7 +88,6 @@ export function QuotaDetails({ quota, t }: { quota: QuotaSnapshot; t: Translate 
             </div>
           </div>
         : null}
-      {quota.unifiedBilling === true ? <p className="gk-hint" style={body}>{t('quotaUnified')}</p> : null}
       <dl style={{ ...body, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 170px), 1fr))', gap: '18px 24px', paddingTop: 16, borderTop: '1px solid var(--gk-line, var(--dsw-alias-border-l2, #e5e5e5))' }}>
         {quota.plan === undefined ? null : <div style={detail}><dt>{t('quotaPlan')}</dt><dd style={detailValue}>{quota.plan}</dd></div>}
         {quota.prepaidBalanceUsd === undefined ? null : <div style={detail}><dt>{t('quotaBalance')}</dt><dd className="gk-numeric" style={{ ...detailValue, ...numeric }}>{quota.prepaidBalanceUsd.toFixed(2)} USD</dd></div>}
@@ -125,7 +124,6 @@ export function QuotaView({ t, signedIn, accountLoading = false }: { t: Translat
         <h3 className="gk-title" style={{ margin: 0, fontSize: 15, fontWeight: 600, color: 'var(--gk-text, var(--dsw-alias-label-primary, #171717))' }}>{t('quotaTitle')}</h3>
         <button className="gk-button" type="button" style={button} disabled={!signedIn || accountLoading || loading} onClick={() => setReload(value => value + 1)}>{t('quotaRefresh')}</button>
       </div>
-      <p style={body}>{t('quotaIntro')}</p>
       {accountLoading || loading ? <p role="status" style={body}>{t(accountLoading ? 'loadingAccount' : 'quotaLoading')}</p> : <QuotaDetails quota={signedIn ? quota ?? { state: 'unavailable' } : { state: 'signed-out' }} t={t} />}
     </section>
   )

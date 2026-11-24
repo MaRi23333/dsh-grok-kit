@@ -16,9 +16,9 @@
 
 > 通过 OAuth 在 DeepSeek Harness 中使用 Grok：主循环融合网页与 X 搜索、多轮推理衔接、图片生成与编辑、视频生成（实验性），以及仅作用于 xAI 的独立代理。
 
-## 不止于 OAuth 登录
+## 用 Grok 聊天和搜索
 
-`dsh-grok-kit` 为 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 增加独立的 `xai-oauth` 路由。它不要求 `XAI_API_KEY`，也不修改 dsh 源码；重点不只是“能登录”，而是把服务端搜索和连续 reasoning 所需的请求字段接进主聊天路径。
+在 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 里登录有相应订阅权限的 Grok 账号，不需要 `XAI_API_KEY`，也不用改 DSH 源码。开启融合搜索后，Grok 可以在同一轮回答里查网页和 X；连续对话还可以接着上一轮推理。插件使用独立的 `xai-oauth` 路由。
 
 - **搜索融入主循环：** 网页与 X 检索发生在 Grok 的同一轮 Think 中，推理可以直接使用刚搜到的材料
 - **多轮推理衔接：** 默认使用 high effort，并保留 `reasoning.encrypted_content`，让后续回合能够带回加密推理上下文
@@ -35,7 +35,7 @@
 
 额度使用官方 billing/settings 返回的百分比、周期、套餐及预付余额。REST 缺少使用百分比时会补查一次 gRPC；只有响应完整、状态成功且周期有效时，才按 proto3 隐式零值显示已用 0%／剩余 100%，不能核实时仍保留订阅详情、已用/剩余未知，不冒充无限额度。补查使用独立短超时，失败或补查超时不会抹去已读取的部分数据；整次读取超时、取消和账号校验仍然生效。结果按账号最多缓存 60 秒，已核实用量的缓存不跨有效周期，返回前也会重新校验周期；缺百分比的未缓存读取至多多发一次 gRPC 请求，REST 429 不触发补查。周期有效性依赖本机时钟，时钟偏差可能影响周期判断和隐式零值显示。统一计费标记来自接口，不根据套餐名猜测；仅展示当前登录身份，不汇总不同工作区或席位。本插件不提供 Cursor 登录或其他模型、外部 Agent 的接入。
 
-**0.2.12** 更新开发与测试依赖，修复开发工具链的安全告警。除版本标识外，运行依赖、插件功能和配置格式不变；DSH 0.2.2 原生设置图标及现有账号、搜索和媒体设置保持。
+**0.2.13** 修复新版 DSH 在处理 Grok 对话图片时的预算错误，自动标题和摘要不再占用主对话的融合搜索接续记录，并精简账号页配额说明。
 
 ## 主循环融合搜索
 
@@ -53,7 +53,7 @@
 
 需要按域名、账号或日期过滤时，改走独立的 `grok_web_search` / `x_search`（`backendSearch` 关闭时的默认路径）；开启 `backendSearch` 后这条独立路径退居可选。
 
-`statefulResponses` 默认关闭。开启后，插件通过 `store: true` 和 `previous_response_id` 续接对话，只追加新的用户消息；若上一轮调用了 bash 等客户端工具，则不续接，以免重复生成已有的搜索正文。续接对话不保证缓存上一轮的全部搜索材料。
+**融合搜索接续**（`statefulResponses`）默认关闭。开启后，符合条件的主对话请求通过 `store: true` 和 `previous_response_id` 接上上一轮响应，只发送新增输入。自动标题和摘要各自处理。若上一轮调用了 bash 等客户端工具，下一次请求会重新发送当前上下文。搜索材料的缓存命中由服务端决定。
 
 ## 界面与效果
 
@@ -79,12 +79,12 @@
 </p>
 <p align="center"><em>账户页集中展示订阅用量与余额，可手动刷新配额。图中数据是截图时该账号的状态，不代表所有账号的配额或套餐。</em></p>
 
-#### 搜索与连续对话
+#### 搜索与融合搜索接续
 
 <p align="center">
-  <img src="assets/readme/settings-search.png" width="840" alt="Grok Kit 搜索页：融合搜索已开启，连续对话已关闭，两项均标注为实验性功能">
+  <img src="assets/readme/settings-search.png" width="840" alt="Grok Kit 搜索页的旧版截图，融合搜索已开启，接续选项已关闭">
 </p>
-<p align="center"><em>分别控制同一轮回答中的 Web / X 融合搜索与连续对话。两项均为实验性功能，默认关闭；图中融合搜索由用户手动开启。</em></p>
+<p align="center"><em>融合搜索控制当前回答是否搜索网页和 X。融合搜索接续控制后续回答是否引用上一轮响应。两项均为实验性功能，默认关闭。</em></p>
 
 #### 图片与视频工具
 
@@ -109,7 +109,7 @@
 ### 桌面客户端
 
 1. 打开桌面客户端，在侧栏进入 **插件（Plugins）→ 添加插件（Add plugin）**。
-2. 输入 `dsh-grok-kit@latest` 并安装；需要固定本版时输入 `dsh-grok-kit@0.2.12`。
+2. 输入 `dsh-grok-kit@latest` 并安装；需要固定本版时输入 `dsh-grok-kit@0.2.13`。
 3. 安装完成后点击 **立即启用（Enable now）**。若提示需要重启，通过应用菜单或托盘的 **Quit / 退出** 完整退出后重新打开；仅关闭窗口可能只是隐藏应用。
 4. 在 **设置 → xAI Grok** 中确认插件入口出现，再按账号资格完成登录。
 
@@ -126,10 +126,10 @@ dsh web
 
 如果 Web 进程已经在运行，先停止它，安装后再运行 `dsh web` 并刷新页面。以下命令均用于 Web。
 
-也可以固定安装 0.2.12：
+也可以固定安装 0.2.13：
 
 ```sh
-dsh plugin --profile web add dsh-grok-kit@0.2.12
+dsh plugin --profile web add dsh-grok-kit@0.2.13
 dsh web
 ```
 

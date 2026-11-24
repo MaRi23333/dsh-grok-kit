@@ -16,9 +16,9 @@
 
 > Use Grok in DeepSeek Harness through OAuth: fused web/X search in the main model turn, reasoning continuity across turns, image generation and editing, video generation (experimental), and an xAI-only proxy.
 
-## More than OAuth sign-in
+## Chat and search with Grok
 
-`dsh-grok-kit` adds a separate `xai-oauth` route to [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). It does not require `XAI_API_KEY` or patch dsh source code. The point is not only to sign in, but to bring server-side search and the fields required for continuous reasoning into the main chat path.
+Sign in to [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) with an eligible Grok account. You don’t need an `XAI_API_KEY` or changes to DSH itself. Turn on fused search to let Grok look up web pages and X posts while answering. It can also carry reasoning into the next turn. The plugin uses a separate `xai-oauth` route.
 
 - **Search in the main loop:** web and X lookup occurs inside Grok's current Think turn, so reasoning can use newly found material immediately
 - **Continuous multi-turn reasoning:** high effort is the default, with `reasoning.encrypted_content` preserved for the next turn
@@ -35,7 +35,7 @@ Supporting behavior includes an xAI-only proxy, forced refresh and one retry on 
 
 Quota comes from the official billing/settings responses: percentage, period, plan and prepaid balance. A missing REST percentage triggers one gRPC verification. Only a complete, successful response with a valid current period can yield the proto3 implicit zero: 0% used / 100% remaining. Otherwise subscription details remain visible with unknown usage, never unlimited usage. Verification has its own short timeout, so its failure or timeout preserves already-read partial details; the whole-get deadline, cancellation and account checks still apply. Results are cached per account for at most 60 seconds; verified usage does not remain cached beyond its valid period, and the period is rechecked before returning it. An uncached read missing a percentage adds at most one gRPC request, and REST 429 never triggers it. Current-period checks rely on the local clock; clock skew can affect freshness and implicit-zero decisions. Unified billing is identified by the reported flag, not guessed from the plan name. Only the signed-in identity is shown; workspaces and seats are not aggregated. The plugin does not provide Cursor sign-in or integrations for other models or external agents.
 
-**0.2.12** updates development and test dependencies to address security advisories in the development toolchain. Apart from version identifiers, runtime dependencies, plugin behavior, and configuration formats are unchanged. Native DSH 0.2.2 settings icons and existing account, search, and media settings are retained.
+**0.2.13** fixes an image-budget error in Grok chats on newer DSH builds, keeps automatic titles and summaries out of the main conversation’s fused search continuation, and simplifies the account quota panel.
 
 ## Search in the main model turn
 
@@ -53,7 +53,7 @@ From 0.2.10, integrating plugins can set search on or off for individual session
 
 For domain, account, or date filters, use the standalone `grok_web_search` / `x_search` tools — the default path while `backendSearch` is off; enabling `backendSearch` turns this standalone path into the optional mode.
 
-`statefulResponses` is off by default. When enabled, the plugin uses `store: true` and `previous_response_id` to continue the conversation, appending only new user messages. It does not continue a turn that used client tools such as bash, to avoid repeating an existing search answer. Continuing a conversation does not guarantee that all search material from the previous turn is cached.
+**Fused search continuation** (`statefulResponses`) is off by default. With it on, eligible chat requests use `store: true` and `previous_response_id` to refer to the previous response and send only new input. Automatic titles and summaries use separate requests. After a turn that used a client tool such as Bash, the next request resends the current context. Search cache hits depend on the service.
 
 ## Interface and behavior
 
@@ -79,12 +79,12 @@ The settings UI in 0.2.10 has five tabs: Account, Models, Search, Media, and Net
 </p>
 <p align="center"><em>The account page brings subscription usage and balance together, with a manual quota refresh. The values reflect this account at capture time, not the quota or plan available to every account.</em></p>
 
-#### Search and continuous conversation
+#### Search and fused search continuation
 
 <p align="center">
-  <img src="assets/readme/settings-search.png" width="840" alt="Grok Kit Search tab: fused search enabled and continuous conversation disabled, both labeled experimental">
+  <img src="assets/readme/settings-search.png" width="840" alt="Earlier Grok Kit Search tab with fused search enabled and continuation off">
 </p>
-<p align="center"><em>Control Web / X search within the same reply and continuous conversation separately. Both are experimental and off by default; fused search was manually enabled in this screenshot.</em></p>
+<p align="center"><em>Fused search controls web and X search in the current reply. Fused search continuation controls whether a later reply can refer to the previous response. Both are experimental and off by default.</em></p>
 
 #### Image and video tools
 
@@ -109,7 +109,7 @@ Desktop and Web have separate plugin installations and activation states. Choose
 ### Desktop app
 
 1. Open the desktop app and select **Plugins → Add plugin** in the sidebar.
-2. Enter `dsh-grok-kit@latest` and install it, or use `dsh-grok-kit@0.2.12` to pin this release.
+2. Enter `dsh-grok-kit@latest` and install it, or use `dsh-grok-kit@0.2.13` to pin this release.
 3. Click **Enable now** when installation finishes. If prompted to restart, fully quit through the application menu or tray **Quit** action, then reopen the app. Closing the window may only hide it.
 4. Check that **Settings → xAI Grok** is available, then sign in with an eligible account.
 
@@ -126,10 +126,10 @@ dsh web
 
 If the Web process is already running, stop it first, then run `dsh web` after installation and refresh the page. The commands below are for Web.
 
-You can also pin version 0.2.12:
+You can also pin version 0.2.13:
 
 ```sh
-dsh plugin --profile web add dsh-grok-kit@0.2.12
+dsh plugin --profile web add dsh-grok-kit@0.2.13
 dsh web
 ```
 

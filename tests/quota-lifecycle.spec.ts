@@ -22,10 +22,8 @@ describe('quota view request lifecycle', () => {
     expect(fetch).not.toHaveBeenCalled()
     expect(tree.props['aria-busy']).toBe(true)
     const children = tree.props.children as Array<{ type: unknown; props: Record<string, unknown> }>
-    const message = children[2]!
-    expect(message.type).toBe('p')
-    expect(message.props.role).toBe('status')
-    expect(message.props.children).toBe('loadingAccount')
+    const message = children.find(child => child.props.role === 'status')
+    expect(message).toMatchObject({ type: 'p', props: { children: 'loadingAccount' } })
     const header = children[0]!.props.children as Array<{ props: Record<string, unknown> }>
     expect(header[1]!.props.disabled).toBe(true)
   })

@@ -1,5 +1,14 @@
 # 更新记录 / Changelog
 
+## 0.2.13（2026-11-24）
+
+- 补齐新版 DSH 所需的图片预算参数，修复 Grok 对话附图时可能出现的图片大小错误。
+- 自动标题和摘要不再读写主对话的融合搜索接续记录。融合搜索接续默认关闭。
+- 精简账号页配额说明，保留用量、剩余额度、套餐、余额和手动刷新。
+- Fix an image-size error in Grok chats on newer DSH builds by supplying the host’s image-budget parameters.
+- Keep automatic titles and summaries out of the main conversation’s fused search continuation. Continuation is off by default.
+- Simplify the account quota panel while keeping usage, remaining allowance, plan, balance, and manual refresh.
+
 ## 0.2.12（2026-11-12）
 
 - 更新 Vitest 与 fast-uri，并为三个开发工具依赖定向覆盖 minimatch 11.0.5，修复开发依赖安全问题。运行依赖与功能行为不变。

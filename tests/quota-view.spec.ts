@@ -48,9 +48,10 @@ describe('account quota presentation', () => {
     expect(parsed).not.toHaveProperty('usedPercent')
     expect(parsed).not.toHaveProperty('remainingPercent')
     expect(parsed).not.toHaveProperty('access')
+    expect(parsed).toHaveProperty('unifiedBilling', true)
     const tree = QuotaDetails({ quota: parsed, t })
     expect(text(tree)).toContain('quotaPartial')
-    expect(text(tree)).toContain('quotaUnified')
+    expect(text(tree)).not.toContain('quotaUnified')
     expect(text(tree)).toContain('Ultra')
     expect(text(tree)).toContain('0.00 USD')
     expect(text(tree)).toContain('quotaResetAt')
@@ -58,8 +59,8 @@ describe('account quota presentation', () => {
     expect(nodes(tree).some(node => node.props.role === 'progressbar')).toBe(false)
   })
   it('does not infer unified billing from the plan name or a truthy string', () => {
-    const tree = QuotaDetails({ quota: parseQuotaSnapshot({ ...valid, plan: 'Ultra', unifiedBilling: 'true' }), t })
-    expect(text(tree)).not.toContain('quotaUnified')
+    expect(parseQuotaSnapshot({ ...valid, plan: 'Ultra' })).not.toHaveProperty('unifiedBilling')
+    expect(parseQuotaSnapshot({ ...valid, plan: 'Ultra', unifiedBilling: 'true' })).not.toHaveProperty('unifiedBilling')
   })
   it('still validates partial timestamps and period contracts', () => {
     expect(() => parseQuotaSnapshot({ state: 'partial', period: 'daily', checkedAt: valid.checkedAt })).toThrow()

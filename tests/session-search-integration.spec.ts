@@ -116,28 +116,55 @@ describe('per-session search reaches actual Responses payloads', () => {
     expect(payloads[2]?.['tools']).toEqual([clientSearch, fetchTool])
   })
 
-  it('carries auxiliary purpose through the real PiAiAdapter direct and prepared streams', async () => {
+  it.each([
+    { bound: true, statefulResponses: false },
+    { bound: true, statefulResponses: true },
+    { bound: false, statefulResponses: true },
+  ])('isolates auxiliary requests (bound=$bound, continuation=$statefulResponses)', async ({ bound, statefulResponses }) => {
     const policy = new SessionSearchPolicy(), payloads: Array<Record<string, unknown>> = []
-    policy.bindSession('qq', {}, () => true)
+    if (bound) policy.bindSession('qq', {}, () => true)
+    const store = createMemoryResponseChainStore()
+    const storeAccess = [vi.spyOn(store, 'get'), vi.spyOn(store, 'set'), vi.spyOn(store, 'delete')]
+    const first = { role: 'user', content: 'Find sources on a topic' }
+    const followUp = { role: 'user', content: 'List the sources from the previous search' }
+    const inputs = [
+      [first],
+      [first, { role: 'user', content: 'Generate a title' }],
+      [first, { role: 'user', content: 'Summarize the conversation' }],
+      [first, { role: 'assistant', content: 'Previous search reply' }, followUp],
+    ]
+    const base = { store: false, instructions: 'Synthetic instructions', prompt_cache_key: 'qq', tools: [] }
     const inner = fixture(async options => {
-      payloads.push(await options?.onPayload?.({ tools: [] }, GROK_46_MODEL) as Record<string, unknown>)
-      return terminal()
+      const turn = payloads.length
+      payloads.push(await options?.onPayload?.({ ...base, input: inputs[turn] }, GROK_46_MODEL) as Record<string, unknown>)
+      return terminal(`response-${turn}`)
     })
     const provider = wrapXaiResponsesProvider({ ...inner,
       getModels: () => [{ ...GROK_46_MODEL, provider: 'xai-oauth' }],
       auth: { apiKey: { name: 'test', resolve: async () => ({ auth: { apiKey: 'synthetic' }, source: 'test' }) } },
-    }, { backendSearch: false, retry401: false, resolveBackendSearch: id => policy.resolve(id) })
+    }, { backendSearch: !bound, retry401: false, resolveBackendSearch: id => policy.resolve(id),
+      statefulResponses, chainStore: store })
     const session = new XaiOAuthSession()
     session.provider = () => provider
     const adapter = createXaiOAuthAdapter(session, () => undefined)
     const prepared = await adapter.prepareCall('xai-oauth', GROK_46_MODEL.id)
     const request = { provider: 'xai-oauth', model: GROK_46_MODEL.id, sessionId: 'qq', messages: [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }] }
-    for (const [source, auxiliary] of [[adapter, false], [prepared, true], [adapter, true], [prepared, false]] as const) {
-      for await (const _ of source.stream({ ...request, ...auxiliary ? { purpose: 'compaction' } : {} } as never)) { /* consume actual adapter */ }
+    for (const [source, purpose] of [[adapter, undefined], [prepared, 'session-title'], [adapter, 'compaction'], [prepared, undefined]] as const) {
+      const before = storeAccess.map(spy => spy.mock.calls.length)
+      for await (const _ of source.stream({ ...request, purpose } as never)) { /* consume actual adapter */ }
+      if (purpose !== undefined || !statefulResponses) expect(storeAccess.map(spy => spy.mock.calls.length)).toEqual(before)
     }
-    expect(payloads.map(payload => payload['tools'])).toEqual([
-      [{ type: 'web_search' }, { type: 'x_search' }], [], [], [{ type: 'web_search' }, { type: 'x_search' }],
+    const main = { ...base, store: statefulResponses, tools: [{ type: 'web_search' }, { type: 'x_search' }] }
+    const auxiliary = { ...base, tools: bound ? [] : main.tools }
+    expect(payloads).toMatchObject([
+      { ...main, input: inputs[0] },
+      { ...auxiliary, input: inputs[1] },
+      { ...auxiliary, input: inputs[2] },
+      { ...main, input: statefulResponses ? [followUp] : inputs[3] },
     ])
+    for (const payload of payloads.slice(0, 3)) expect(payload).not.toHaveProperty('previous_response_id')
+    if (statefulResponses) expect(payloads[3]).toHaveProperty('previous_response_id', 'response-0')
+    else expect(payloads[3]).not.toHaveProperty('previous_response_id')
   })
 
   it.each([true, false])('replays complete history when toggling away from and back to %s', async initial => {
